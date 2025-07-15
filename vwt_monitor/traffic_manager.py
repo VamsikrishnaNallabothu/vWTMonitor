@@ -185,33 +185,27 @@ class TrafficManager:
             ProtocolType.ICMP: self._test_icmp_ping
         }
     
-    def run_traffic_test(self, test_config: TrafficTestConfig) -> Dict[str, TrafficTestResult]:
+    def run_traffic_test(self, test_pairs: List[dict], test_config: TrafficTestConfig) -> Dict[str, TrafficTestResult]:
         """
-        Run traffic test with the given configuration.
-        
+        Run traffic test for a given list of source-target host pairs.
         Args:
-            test_config: Traffic test configuration
-            
+            test_pairs: List of {source_host: target_host} dicts
+            test_config: Traffic test configuration (ports, protocol, etc.)
         Returns:
             Dictionary mapping test identifiers to results
         """
         self.logger.info(f"Starting traffic test: {test_config.protocol.value} {test_config.direction.value}")
-        
         results = {}
         test_id_base = f"{test_config.protocol.value}_{test_config.direction.value}_{int(time.time())}"
-        
-        # Run tests for each source-target combination
-        for i, source_host in enumerate(test_config.source_hosts):
-            for j, target_host in enumerate(test_config.target_hosts):
+        for idx, pair in enumerate(test_pairs):
+            for source_host, target_host in pair.items():
                 for k, target_port in enumerate(test_config.target_ports):
-                    test_id = f"{test_id_base}_{i}_{j}_{k}"
-                    
+                    test_id = f"{test_id_base}_{idx}_{k}"
                     try:
                         result = self._run_single_test(
                             test_id, test_config, source_host, target_host, target_port
                         )
                         results[test_id] = result
-                        
                     except Exception as e:
                         self.logger.error(f"Test {test_id} failed: {e}")
                         results[test_id] = TrafficTestResult(
@@ -227,10 +221,7 @@ class TrafficManager:
                             success=False,
                             error_message=str(e)
                         )
-        
-        # Store in history
         self.test_history.extend(results.values())
-        
         return results
     
     def _run_single_test(self, test_id: str, test_config: TrafficTestConfig, 

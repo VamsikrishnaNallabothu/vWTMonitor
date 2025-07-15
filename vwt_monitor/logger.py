@@ -54,14 +54,6 @@ class StructuredLogger:
         # Real-time log buffer
         self.log_buffer = []
         self.max_buffer_size = 1000
-        
-        # Performance metrics
-        self.metrics = {
-            'total_logs': 0,
-            'errors': 0,
-            'warnings': 0,
-            'start_time': datetime.now()
-        }
     
     def _parse_level(self, level: str) -> int:
         """Parse log level string to logging constant."""
@@ -164,13 +156,6 @@ class StructuredLogger:
         # Maintain buffer size
         if len(self.log_buffer) > self.max_buffer_size:
             self.log_buffer.pop(0)
-        
-        # Update metrics
-        self.metrics['total_logs'] += 1
-        if level == 'error':
-            self.metrics['errors'] += 1
-        elif level == 'warning':
-            self.metrics['warnings'] += 1
     
     def debug(self, message: str, **kwargs):
         """Log debug message."""
@@ -231,18 +216,8 @@ class StructuredLogger:
         """Get recent log entries."""
         return self.log_buffer[-count:] if self.log_buffer else []
     
-    def get_metrics(self) -> Dict[str, Any]:
-        """Get logging metrics."""
-        uptime = datetime.now() - self.metrics['start_time']
-        return {
-            **self.metrics,
-            'uptime_seconds': uptime.total_seconds(),
-            'buffer_size': len(self.log_buffer),
-            'log_level': logging.getLevelName(self.level)
-        }
-    
-    def create_dashboard(self) -> Layout:
-        """Create a real-time logging dashboard."""
+    def start_live_dashboard(self):
+        """Start a live updating dashboard."""
         layout = Layout()
         
         layout.split_column(
@@ -256,74 +231,60 @@ class StructuredLogger:
             Layout(name="metrics", ratio=1)
         )
         
-        return layout
-    
-    def update_dashboard(self, layout: Layout):
-        """Update the dashboard with current data."""
-        # Header
-        header = Panel(
-            f"[bold blue]SSH Tool - Real-time Logging Dashboard[/bold blue]\n"
-            f"Started: {self.metrics['start_time'].strftime('%Y-%m-%d %H:%M:%S')}",
-            title="Dashboard"
-        )
-        layout["header"].update(header)
-        
-        # Recent logs
-        recent_logs = self.get_recent_logs(20)
-        log_table = Table(title="Recent Logs")
-        log_table.add_column("Time", style="cyan")
-        log_table.add_column("Level", style="magenta")
-        log_table.add_column("Message", style="white")
-        
-        for log_entry in recent_logs:
-            level_color = {
-                'debug': 'blue',
-                'info': 'green',
-                'warning': 'yellow',
-                'error': 'red',
-                'critical': 'red'
-            }.get(log_entry['level'], 'white')
-            
-            log_table.add_row(
-                log_entry['timestamp'][11:19],  # Time only
-                f"[{level_color}]{log_entry['level'].upper()}[/{level_color}]",
-                log_entry['message'][:50] + "..." if len(log_entry['message']) > 50 else log_entry['message']
-            )
-        
-        layout["logs"].update(Panel(log_table))
-        
-        # Metrics
-        metrics = self.get_metrics()
-        metrics_table = Table(title="Metrics")
-        metrics_table.add_column("Metric", style="cyan")
-        metrics_table.add_column("Value", style="green")
-        
-        metrics_table.add_row("Total Logs", str(metrics['total_logs']))
-        metrics_table.add_row("Errors", str(metrics['errors']))
-        metrics_table.add_row("Warnings", str(metrics['warnings']))
-        metrics_table.add_row("Uptime", f"{metrics['uptime_seconds']:.1f}s")
-        metrics_table.add_row("Buffer Size", str(metrics['buffer_size']))
-        metrics_table.add_row("Log Level", metrics['log_level'])
-        
-        layout["metrics"].update(Panel(metrics_table))
-        
-        # Footer
-        footer = Panel(
-            f"[bold]Status:[/bold] Active | "
-            f"[bold]Log File:[/bold] {self.log_file} | "
-            f"[bold]Format:[/bold] {self.log_format}",
-            title="Status"
-        )
-        layout["footer"].update(footer)
-    
-    def start_live_dashboard(self):
-        """Start a live updating dashboard."""
-        layout = self.create_dashboard()
-        
         with Live(layout, refresh_per_second=2, screen=True):
             while True:
                 try:
-                    self.update_dashboard(layout)
+                    # Header
+                    header = Panel(
+                        f"[bold blue]SSH Tool - Real-time Logging Dashboard[/bold blue]\n"
+                        f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                        title="Dashboard"
+                    )
+                    layout["header"].update(header)
+                    
+                    # Recent logs
+                    recent_logs = self.get_recent_logs(20)
+                    log_table = Table(title="Recent Logs")
+                    log_table.add_column("Time", style="cyan")
+                    log_table.add_column("Level", style="magenta")
+                    log_table.add_column("Message", style="white")
+                    
+                    for log_entry in recent_logs:
+                        level_color = {
+                            'debug': 'blue',
+                            'info': 'green',
+                            'warning': 'yellow',
+                            'error': 'red',
+                            'critical': 'red'
+                        }.get(log_entry['level'], 'white')
+                        
+                        log_table.add_row(
+                            log_entry['timestamp'][11:19],  # Time only
+                            f"[{level_color}]{log_entry['level'].upper()}[/{level_color}]",
+                            log_entry['message'][:50] + "..." if len(log_entry['message']) > 50 else log_entry['message']
+                        )
+                    
+                    layout["logs"].update(Panel(log_table))
+                    
+                    # Metrics
+                    metrics_table = Table(title="Metrics")
+                    metrics_table.add_column("Metric", style="cyan")
+                    metrics_table.add_column("Value", style="green")
+                    
+                    metrics_table.add_row("Total Logs", str(len(self.log_buffer)))
+                    metrics_table.add_row("Buffer Size", str(len(self.log_buffer)))
+                    
+                    layout["metrics"].update(Panel(metrics_table))
+                    
+                    # Footer
+                    footer = Panel(
+                        f"[bold]Status:[/bold] Active | "
+                        f"[bold]Log File:[/bold] {self.log_file} | "
+                        f"[bold]Format:[/bold] {self.log_format}",
+                        title="Status"
+                    )
+                    layout["footer"].update(footer)
+                    
                     import time
                     time.sleep(0.5)
                 except KeyboardInterrupt:

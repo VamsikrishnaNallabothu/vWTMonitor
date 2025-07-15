@@ -13,7 +13,7 @@
 - **Real-time Log Capture**: Monitor log files across multiple hosts in real-time with structured output
 - **Enhanced File Transfers**: Upload and download files with progress tracking, checksum verification, and compression
 - **Network Traffic Testing**: Comprehensive protocol testing (TCP, UDP, HTTP, HTTPS, SCP, FTP, DNS, ICMP) with detailed metrics
-- **Comprehensive Metrics**: Detailed performance metrics with Prometheus integration
+- **Comprehensive Metrics**: Detailed performance and test result metrics
 - **Structured Logging**: Advanced logging with multiple formats (JSON, text, structured) and real-time dashboards
 
 ### Advanced Features
@@ -286,9 +286,9 @@ python main.py tail -c config.yaml /var/log/nginx/error.log
 python main.py tail -h host1,host2 -u root -p password --timeout 60 /var/log/syslog
 ```
 
-### Metrics and Monitoring
+### Monitoring and Metrics
 
-Export metrics and view statistics:
+Export stats and view results:
 
 ```bash
 # Export metrics
@@ -461,15 +461,6 @@ Enhanced network security:
 
 ## Monitoring and Metrics
 
-### Prometheus Integration
-
-Built-in Prometheus metrics:
-
-- **Operation Counters**: Total operations, successful/failed operations
-- **Connection Metrics**: Connection attempts, failures, active connections
-- **Performance Metrics**: Operation duration histograms and summaries
-- **Transfer Metrics**: Bytes transferred, file transfer statistics
-
 ### Real-time Dashboards
 
 Live monitoring dashboards:
@@ -485,7 +476,6 @@ Multiple export formats:
 
 - **JSON Export**: Structured JSON output with metadata
 - **CSV Export**: Comma-separated values for analysis
-- **Metrics Export**: Prometheus-compatible metrics
 - **Log Export**: Structured log export with timestamps
 
 ## Troubleshooting

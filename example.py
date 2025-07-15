@@ -350,8 +350,12 @@ def example_traffic_testing():
             concurrent_connections=5,
             timeout=10
         )
-        
-        tcp_results = traffic_manager.run_traffic_test(tcp_config)
+        # Build test_pairs for TCP
+        test_pairs = []
+        for s in tcp_config.source_hosts:
+            for t in tcp_config.target_hosts:
+                test_pairs.append({s: t})
+        tcp_results = traffic_manager.run_traffic_test(test_pairs, tcp_config)
         
         # Display results
         for test_id, result in tcp_results.items():
@@ -384,8 +388,12 @@ def example_traffic_testing():
             interval=2.0,
             timeout=15
         )
-        
-        http_results = traffic_manager.run_traffic_test(http_config)
+        # Build test_pairs for HTTP
+        http_test_pairs = []
+        for s in http_config.source_hosts:
+            for t in http_config.target_hosts:
+                http_test_pairs.append({s: t})
+        http_results = traffic_manager.run_traffic_test(http_test_pairs, http_config)
         
         # Display HTTP results
         for test_id, result in http_results.items():

@@ -611,6 +611,14 @@ def traffic(config, source_hosts, target_hosts, target_ports, protocol, directio
             scp_credentials=(scp_user, scp_pass) if scp_user and scp_pass else None
         )
         
+        # Build test_pairs: one-to-one mapping with round-robin for extra hosts
+        test_pairs = []
+        max_len = max(len(source_host_list), len(target_host_list))
+        for i in range(max_len):
+            s = source_host_list[i % len(source_host_list)]
+            t = target_host_list[i % len(target_host_list)]
+            test_pairs.append({s: t})
+        
         # Run traffic tests
         with SSHManager(cfg, logger) as manager:
             traffic_manager = TrafficManager(manager, cfg, logger)
@@ -621,7 +629,7 @@ def traffic(config, source_hosts, target_hosts, target_ports, protocol, directio
             console.print(f"Target ports: {', '.join(map(str, target_port_list))}")
             console.print(f"Duration: {duration}s, Interval: {interval}s")
             
-            results = traffic_manager.run_traffic_test(test_config)
+            results = traffic_manager.run_traffic_test(test_pairs, test_config)
             
             # Display results
             display_traffic_results(console, results)

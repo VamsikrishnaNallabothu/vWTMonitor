@@ -1,5 +1,23 @@
 """
 Iperf Manager for running iperf tests across multiple client-server pairs.
+
+Features:
+- Start/stop iperf server/client in background, manage PID and output files
+- Collect iperf stats files from remote hosts
+- Parse iperf3 JSON output for sum_sent, sum_received, cpu_utilization_percent
+- Calculate throughput percentiles (10, 25, 50, 75, 90, 99) and average throughput
+- Pass/fail logic based on expected throughput and tolerance
+
+Example usage:
+    iperf_mgr = IperfManager(ssh_manager, IperfTestConfig(), logger)
+    results = iperf_mgr.run_full_iperf_workflow(
+        client_host="client1", server_host="server1", port=5201, duration=60,
+        parallel_streams=4, mtu_size=1460, interval=2, output_dir="iperf_results"
+    )
+    print(results)
+    # Or parse a file with pass/fail logic:
+    summary = iperf_mgr.parse_iperf_file("iperf_results/iperf_client_client1_to_server1.json", expected_result=8.0)
+    print(summary)
 """
 
 import time
@@ -11,6 +29,7 @@ from datetime import datetime
 import json
 import re
 from pathlib import Path
+import numpy as np
 
 from .channel_manager import ChannelManager, ChannelCommand, ChannelResult
 from .ssh_manager import SSHManager
@@ -404,6 +423,157 @@ class IperfManager:
             json.dump(summary, f, indent=2)
         
         self.logger.info(f"Exported test summary to {filename}")
+
+    def start_iperf_server(self, server_host: str, port: int = 5201, output_file: str = None, pid_file: str = None) -> bool:
+        """
+        Start iperf3 server in background on the server_host, output to file, save PID.
+        """
+        output_file = output_file or f"/tmp/iperf_server_{server_host}.json"
+        pid_file = pid_file or f"/tmp/iperf_server_{server_host}.pid"
+        cmd = f"nohup iperf3 -s -J -p {port} > {output_file} 2>&1 & echo $! > {pid_file}"
+        result = self.ssh_manager.execute_command(cmd, hosts=[server_host])
+        self.logger.info(f"Started iperf3 server on {server_host}, output: {output_file}, pid: {pid_file}")
+        return result[0].success if result else False
+
+    def stop_iperf_server(self, server_host: str, pid_file: str = None) -> bool:
+        """
+        Stop iperf3 server on the server_host using the PID file.
+        """
+        pid_file = pid_file or f"/tmp/iperf_server_{server_host}.pid"
+        cmd = f"if [ -f {pid_file} ]; then kill -9 $(cat {pid_file}) && rm -f {pid_file}; fi"
+        result = self.ssh_manager.execute_command(cmd, hosts=[server_host])
+        self.logger.info(f"Stopped iperf3 server on {server_host}, pid file: {pid_file}")
+        return result[0].success if result else False
+
+    def start_iperf_client(self, client_host: str, server_host: str, port: int = 5201, duration: int = 60, output_file: str = None, pid_file: str = None, parallel_streams: int = 1, mtu_size: int = 1460, interval: int = 2) -> bool:
+        """
+        Start iperf3 client in background on the client_host, output to file, save PID.
+        """
+        output_file = output_file or f"/tmp/iperf_client_{client_host}_to_{server_host}.json"
+        pid_file = pid_file or f"/tmp/iperf_client_{client_host}_to_{server_host}.pid"
+        cmd = (f"nohup iperf3 -c {server_host} -p {port} -O1 -P {parallel_streams} -M {mtu_size} "
+               f"-t {duration} -i {interval} -J > {output_file} 2>&1 & echo $! > {pid_file}")
+        result = self.ssh_manager.execute_command(cmd, hosts=[client_host])
+        self.logger.info(f"Started iperf3 client on {client_host} to {server_host}, output: {output_file}, pid: {pid_file}")
+        return result[0].success if result else False
+
+    def stop_iperf_client(self, client_host: str, server_host: str = None, pid_file: str = None) -> bool:
+        """
+        Stop iperf3 client on the client_host using the PID file.
+        """
+        if pid_file is None and server_host is not None:
+            pid_file = f"/tmp/iperf_client_{client_host}_to_{server_host}.pid"
+        elif pid_file is None:
+            pid_file = f"/tmp/iperf_client_{client_host}.pid"
+        cmd = f"if [ -f {pid_file} ]; then kill -9 $(cat {pid_file}) && rm -f {pid_file}; fi"
+        result = self.ssh_manager.execute_command(cmd, hosts=[client_host])
+        self.logger.info(f"Stopped iperf3 client on {client_host}, pid file: {pid_file}")
+        return result[0].success if result else False
+
+    def collect_stats_file_from_host(self, host: str, remote_path: str, local_path: str) -> bool:
+        """
+        Download a stats/result file from remote host to local path using SFTP.
+        """
+        try:
+            ssh_client = self.ssh_manager.connection_pool.get_connection(
+                host, self.ssh_manager.config.port, self.ssh_manager.config.user,
+                self.ssh_manager.config.password, self.ssh_manager.config.key_file
+            )
+            sftp = ssh_client.open_sftp()
+            sftp.get(remote_path, local_path)
+            sftp.close()
+            self.logger.info(f"Downloaded stats file from {host}: {remote_path} -> {local_path}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to download stats file from {host}: {e}")
+            return False
+
+    def parse_iperf_file(self, file_path: str, expected_result: float = None, tolerance_pct: float = 10.0) -> dict:
+        """
+        Parse a local iperf JSON result file, return summary stats, percentiles, and pass/fail if expected_result is given.
+
+        Args:
+            file_path: Path to the iperf3 JSON output file
+            expected_result: (Optional) Expected average throughput in Gbits/sec for pass/fail logic
+            tolerance_pct: (Optional) Tolerance percentage for pass/fail (default 10%%)
+        Returns:
+            dict with keys:
+                - sum_sent, sum_received, cpu_utilization_percent
+                - throughput_percentiles (dict of percentiles)
+                - average_throughput (float, Gbits/sec)
+                - test_result_fail (bool, if expected_result is given)
+                - expected_result, tolerance_pct (if expected_result is given)
+        """
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            summary = {}
+            percentiles = [10, 25, 50, 75, 90, 99]
+            throughput_values = []
+            # Extract interval throughputs (bits_per_second)
+            if 'intervals' in data:
+                for interval in data['intervals']:
+                    if 'sum' in interval and 'bits_per_second' in interval['sum']:
+                        throughput_values.append(interval['sum']['bits_per_second'] / 1e9)  # Convert to Gbits/sec
+            # Calculate percentiles if we have data
+            throughput_percentiles = {}
+            avg_throughput = None
+            if throughput_values:
+                avg_throughput = float(np.mean(throughput_values))
+                for p in percentiles:
+                    throughput_percentiles[p] = float(np.percentile(throughput_values, p))
+            # Extract summary fields
+            if 'end' in data:
+                summary['sum_sent'] = data['end'].get('sum_sent', {})
+                summary['sum_received'] = data['end'].get('sum_received', {})
+                summary['cpu_utilization_percent'] = data['end'].get('cpu_utilization_percent', {})
+            summary['throughput_percentiles'] = throughput_percentiles
+            summary['average_throughput'] = avg_throughput
+            # Pass/fail logic
+            test_result_fail = None
+            expected_result_lower = None
+            if expected_result is not None and avg_throughput is not None:
+                expected_result_lower = expected_result * (1 - tolerance_pct / 100)
+                test_result_fail = avg_throughput < expected_result and avg_throughput < expected_result_lower
+                summary['expected_result'] = expected_result
+                summary['tolerance_pct'] = tolerance_pct
+                summary['test_result_fail'] = test_result_fail
+            self.logger.info(f"Parsed iperf file {file_path}: {summary}")
+            return summary
+        except Exception as e:
+            self.logger.error(f"Failed to parse iperf file {file_path}: {e}")
+            return {}
+
+    def run_full_iperf_workflow(self, client_host: str, server_host: str, port: int = 5201, duration: int = 60, parallel_streams: int = 1, mtu_size: int = 1460, interval: int = 2, output_dir: str = "iperf_results") -> dict:
+        """
+        Full workflow: start server/client, stop, collect file, parse results.
+        Returns parsed stats dict.
+        """
+        # File paths
+        server_output = f"/tmp/iperf_server_{server_host}.json"
+        server_pid = f"/tmp/iperf_server_{server_host}.pid"
+        client_output = f"/tmp/iperf_client_{client_host}_to_{server_host}.json"
+        client_pid = f"/tmp/iperf_client_{client_host}_to_{server_host}.pid"
+        local_client_file = f"{output_dir}/iperf_client_{client_host}_to_{server_host}.json"
+        local_server_file = f"{output_dir}/iperf_server_{server_host}.json"
+        # Start server
+        self.start_iperf_server(server_host, port, server_output, server_pid)
+        time.sleep(2)
+        # Start client
+        self.start_iperf_client(client_host, server_host, port, duration, client_output, client_pid, parallel_streams, mtu_size, interval)
+        # Wait for test duration
+        time.sleep(duration + 5)
+        # Stop client and server
+        self.stop_iperf_client(client_host, server_host, client_pid)
+        self.stop_iperf_server(server_host, server_pid)
+        # Collect files
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        self.collect_stats_file_from_host(client_host, client_output, local_client_file)
+        self.collect_stats_file_from_host(server_host, server_output, local_server_file)
+        # Parse results
+        client_stats = self.parse_iperf_file(local_client_file)
+        server_stats = self.parse_iperf_file(local_server_file)
+        return {'client': client_stats, 'server': server_stats}
 
 
 def create_iperf_test_scenario(client_hosts: List[str], server_hosts: List[str], 

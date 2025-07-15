@@ -43,8 +43,7 @@ class ConnectionPool:
                  max_connections: int = 50,
                  max_idle_time: int = 300,
                  connection_timeout: int = 30,
-                 health_check_interval: int = 60,
-                 enable_metrics: bool = True):
+                 health_check_interval: int = 60):
         """
         Initialize the connection pool.
         
@@ -53,13 +52,12 @@ class ConnectionPool:
             max_idle_time: Maximum idle time for connections (seconds)
             connection_timeout: Connection timeout (seconds)
             health_check_interval: Health check interval (seconds)
-            enable_metrics: Enable connection metrics
         """
         self.max_connections = max_connections
         self.max_idle_time = max_idle_time
         self.connection_timeout = connection_timeout
         self.health_check_interval = health_check_interval
-        self.enable_metrics = enable_metrics
+        # Removed: self.enable_metrics = enable_metrics
         
         # Connection storage
         self._connections: Dict[str, ConnectionInfo] = {}

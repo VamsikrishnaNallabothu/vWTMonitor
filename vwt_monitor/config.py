@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from tenacity import retry, stop_after_attempt, wait_exponential
+import configparser
 
 
 @dataclass
@@ -83,8 +84,6 @@ class Config:
     connection_idle_timeout: int = 300
     max_retries: int = 3
     retry_delay: int = 1
-    enable_metrics: bool = True
-    metrics_port: int = 9090
     
     # Real-time log capture settings
     log_capture: LogCaptureConfig = field(default_factory=LogCaptureConfig)
@@ -139,50 +138,74 @@ class Config:
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def load(cls, filename: str) -> 'Config':
         """
-        Load configuration from YAML file.
-        
+        Load configuration from YAML (.yaml/.yml) or INI/CFG (.cfg/.ini) file.
         Args:
             filename: Path to configuration file
-            
         Returns:
             Config instance
-            
         Raises:
             FileNotFoundError: If config file doesn't exist
-            yaml.YAMLError: If config file is invalid
+            yaml.YAMLError: If YAML config file is invalid
             ValueError: If configuration is invalid
         """
         if not os.path.exists(filename):
             raise FileNotFoundError(f"Configuration file not found: {filename}")
-        
-        try:
-            with open(filename, 'r', encoding='utf-8') as f:
-                data = yaml.safe_load(f)
-        except yaml.YAMLError as e:
-            raise yaml.YAMLError(f"Invalid YAML in configuration file: {e}")
-        
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in ['.yaml', '.yml']:
+            try:
+                with open(filename, 'r', encoding='utf-8') as f:
+                    data = yaml.safe_load(f)
+            except yaml.YAMLError as e:
+                raise yaml.YAMLError(f"Invalid YAML in configuration file: {e}")
+        elif ext in ['.cfg', '.ini']:
+            parser = configparser.ConfigParser()
+            parser.optionxform = str  # preserve case
+            parser.read(filename, encoding='utf-8')
+            data = {}
+            for section in parser.sections():
+                for key, value in parser.items(section):
+                    # Handle nested sections like [[AWS]] as section.AWS
+                    if key.startswith('[') and key.endswith(']'):
+                        continue
+                    data_key = f"{section}.{key}" if section not in ['DEFAULT'] else key
+                    # Try to parse as float/int/bool if possible
+                    if value.lower() in ['true', 'false']:
+                        value = value.lower() == 'true'
+                    else:
+                        try:
+                            value = int(value)
+                        except ValueError:
+                            try:
+                                value = float(value)
+                            except ValueError:
+                                pass
+                    data[data_key] = value
+            # Flatten known sections for compatibility
+            # Example: [AWS-EC2] USER -> aws_ec2_user
+            for section in parser.sections():
+                for key, value in parser.items(section):
+                    flat_key = f"{section.replace('-', '_').lower()}_{key.lower()}"
+                    data[flat_key] = value
+        else:
+            raise ValueError(f"Unsupported config file extension: {ext}")
+        # The rest of the logic expects a dict like YAML
         # Create jumphost config if specified
         jumphost_data = data.get('jumphost')
         jumphost_config = None
         if jumphost_data:
             jumphost_config = JumphostConfig(**jumphost_data)
-        
         # Create log capture config
         log_capture_data = data.get('log_capture', {})
         log_capture_config = LogCaptureConfig(**log_capture_data)
-        
         # Create file transfer config
         file_transfer_data = data.get('file_transfer', {})
         file_transfer_config = FileTransferConfig(**file_transfer_data)
-        
         # Create security config
         security_data = data.get('security', {})
         security_config = SecurityConfig(**security_data)
-        
         # Create main config
         config_data = {k: v for k, v in data.items() 
                       if k not in ['jumphost', 'log_capture', 'file_transfer', 'security']}
-        
         return cls(
             jumphost=jumphost_config,
             log_capture=log_capture_config,
@@ -218,8 +241,6 @@ class Config:
             'connection_idle_timeout': self.connection_idle_timeout,
             'max_retries': self.max_retries,
             'retry_delay': self.retry_delay,
-            'enable_metrics': self.enable_metrics,
-            'metrics_port': self.metrics_port,
         }
         
         if self.jumphost:

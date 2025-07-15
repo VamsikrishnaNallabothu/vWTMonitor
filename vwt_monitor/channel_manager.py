@@ -246,7 +246,7 @@ class ChannelManager:
             channel.send(command)
             
             # Receive output
-            output, error = self._receive_output(
+            output, error, channel = self.fetch_output(
                 channel, 
                 timeout=cmd.timeout,
                 expect_patterns=cmd.expect_patterns,
@@ -286,65 +286,42 @@ class ChannelManager:
                 success=False
             )
     
-    def _receive_output(self, channel: Channel, timeout: float = None, 
-                       expect_patterns: List[str] = None, expect_responses: Dict[str, str] = None,
-                       wait_for_prompt: bool = False, prompt_pattern: str = None) -> Tuple[str, str]:
+    def fetch_output(self, channel: Channel, timeout: float = 30.0, encoding: str = 'utf-8', window_size: int = 4096, poll_iterations: int = 10, logger=None, expect_patterns: List[str] = None, expect_responses: Dict[str, str] = None, wait_for_prompt: bool = False, prompt_pattern: str = None) -> Tuple[str, str, Channel]:
         """
-        Receive output from channel with optional expect patterns.
-        
-        Args:
-            channel: SSH channel
-            timeout: Timeout for receiving
-            expect_patterns: Patterns to expect
-            expect_responses: Responses to send for patterns
-            wait_for_prompt: Whether to wait for prompt
-            prompt_pattern: Prompt pattern to wait for
-            
-        Returns:
-            Tuple of (output, error)
+        Standalone function to receive output from channel with optional expect patterns.
+        Returns (output, error, channel).
         """
-        if timeout is None:
-            timeout = self.default_timeout
-        
         output = ""
         error = ""
         iterations = 0
-        max_iterations = self.default_poll_iterations
-        
+        max_iterations = poll_iterations
+        poll_sleep = 0.01  # Lower sleep for lower latency
         try:
             while (not channel.exit_status_ready() or channel.recv_ready() or channel.recv_stderr_ready()) and \
                   iterations <= max_iterations:
-                
                 data = ""
-                
-                # Check for data to receive
-                if channel.recv_ready():
+                is_stderr = False
+                # Combine logic for stdout and stderr
+                if channel.recv_ready() or channel.recv_stderr_ready():
                     try:
                         r, _, _ = select.select([channel], [], [], timeout)
                         if r:
-                            data = channel.recv(self.default_window_size)
+                            if channel.recv_ready():
+                                data = channel.recv(window_size)
+                            elif channel.recv_stderr_ready():
+                                data = channel.recv_stderr(window_size)
+                                is_stderr = True
                             if isinstance(data, bytes):
-                                data = data.decode(self.default_encoding)
+                                data = data.decode(encoding)
+                            if is_stderr:
+                                error += data
+                            else:
+                                output += data
                     except socket.timeout:
                         pass
-                
-                # Check for stderr
-                elif channel.recv_stderr_ready():
-                    try:
-                        r, _, _ = select.select([channel], [], [], timeout)
-                        if r:
-                            data = channel.recv_stderr(self.default_window_size)
-                            if isinstance(data, bytes):
-                                data = data.decode(self.default_encoding)
-                            error += data
-                    except socket.timeout:
-                        pass
-                
                 # Process received data
                 if data:
                     iterations = 0
-                    output += data
-                    
                     # Check for expect patterns
                     if expect_patterns and expect_responses:
                         for pattern in expect_patterns:
@@ -352,27 +329,24 @@ class ChannelManager:
                                 response = expect_responses.get(pattern, "")
                                 if response:
                                     channel.send(response + '\n')
-                                    self.logger.debug(f"Sent expect response: {response}")
-                
+                                    if logger:
+                                        logger.debug(f"Sent expect response: {response}")
                 else:
                     iterations += 1
-                    time.sleep(0.1)
-                
+                    time.sleep(poll_sleep)
                 # Check for prompt if waiting
                 if wait_for_prompt and prompt_pattern:
                     import re
                     if re.search(prompt_pattern, output):
                         break
-                
                 # Check if channel is ready to exit
                 if channel.exit_status_ready():
                     break
-            
-            return output.strip(), error.strip()
-            
+            return output.strip(), error.strip(), channel
         except Exception as e:
-            self.logger.error(f"Error receiving output: {e}")
-            return output.strip(), str(e)
+            if logger:
+                logger.error(f"Error receiving output: {e}")
+            return output.strip(), str(e), channel
     
     def _clean_channel_buffer(self, channel: Channel):
         """Clean the channel buffer."""
@@ -478,3 +452,48 @@ class ChannelManager:
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close_all_channels() 
+
+
+def execute_command(ssh_obj, command: str, timeout: float = 30.0, logger=None):
+    """
+    Execute a command using either an existing SSH channel or an SSHClient.
+    If a Channel is provided, use it directly. If an SSHClient is provided, open a new shell channel.
+    Returns (output, channel) so the channel can be reused.
+    Args:
+        ssh_obj: Channel or SSHClient
+        command: Command to execute
+        timeout: Timeout for command execution
+        logger: Optional logger
+    Returns:
+        Tuple of (output, channel)
+    """
+    channel = None
+    try:
+        if isinstance(ssh_obj, Channel):
+            channel = ssh_obj
+        elif isinstance(ssh_obj, SSHClient):
+            channel = ssh_obj.invoke_shell()
+        else:
+            raise TypeError("ssh_obj must be a paramiko.Channel or paramiko.SSHClient")
+        if not command.endswith('\n'):
+            command += '\n'
+        if not channel.send_ready():
+            raise SSHException("Channel not ready for sending")
+        channel.send(command)
+        output, error, channel = fetch_output(
+            channel,
+            timeout=timeout,
+            encoding='utf-8',
+            window_size=4096,
+            poll_iterations=10,
+            logger=logger
+        )
+        if error:
+            if logger:
+                logger.error(f"Error executing command: {error}")
+            return error, channel
+        return output, channel
+    except Exception as e:
+        if logger:
+            logger.error(f"Error executing command: {e}")
+        return str(e), channel 

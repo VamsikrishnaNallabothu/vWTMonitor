@@ -41,8 +41,6 @@ connection_pool_size: 50
 connection_idle_timeout: 300
 max_retries: 3
 retry_delay: 1
-enable_metrics: true
-metrics_port: 9090
 
 # Real-time log capture settings
 log_capture:

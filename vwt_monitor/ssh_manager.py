@@ -27,7 +27,7 @@ from .config import Config
 from .logger import StructuredLogger, HostLogger
 from .connection_pool import ConnectionPool, JumphostConnectionPool
 from .log_capture import LogCapture, LogCaptureConfig
-from .metrics import MetricsCollector
+# Removed: from .metrics import MetricsCollector
 from .channel_manager import ChannelManager, ChannelCommand, ChannelResult
 
 
@@ -79,10 +79,10 @@ class SSHManager:
         
         # Initialize components
         self.connection_pool = self._create_connection_pool()
-        self.metrics = MetricsCollector(
-            enable_prometheus=config.enable_metrics,
-            prometheus_port=config.metrics_port
-        )
+        # Removed: self.metrics = MetricsCollector(
+        #     enable_prometheus=config.enable_metrics,
+        #     prometheus_port=config.metrics_port
+        # )
         
         # Log capture
         self.log_capture = None

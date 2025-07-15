@@ -67,8 +67,6 @@ setup(
     },
     keywords="ssh, parallel, automation, system administration, remote execution, log capture, network monitoring, traffic testing",
     project_urls={
-        "Bug Reports": "https://github.com/your-username/vwt-monitor/issues",
-        "Source": "https://github.com/your-username/vwt-monitor",
-        "Documentation": "https://vwt-monitor.readthedocs.io/",
+        "Source": "https://github.com/VamsikrishnaNallabothu",
     },
 ) 
