@@ -1,0 +1,68 @@
+# vWT Monitor Configuration
+# This file contains the default configuration for vWT Monitor
+
+# Target hosts to connect to
+hosts:
+  - "192.168.1.10"
+  - "192.168.1.11"
+  - "192.168.1.12"
+
+# SSH connection settings
+user: "root"
+password: ""  # Leave empty if using key-based authentication
+key_file: "~/.ssh/id_rsa"  # Path to private key file
+port: 22
+timeout: 30
+max_parallel: 10
+
+# Jumphost configuration (optional)
+# Uncomment and configure if you need to connect through a jump host
+jumphost:
+  host: "jumphost.example.com"
+  user: "jumpuser"
+  password: ""  # Leave empty if using key-based authentication
+  key_file: "~/.ssh/jump_key"
+  port: 22
+  timeout: 30
+
+# Logging configuration
+log_level: "info"  # debug, info, warn, error, fatal
+log_file: "logs/vwt_monitor.log"
+log_format: "json"  # json, text, structured
+
+# Advanced SSH settings
+banner_timeout: 240
+keep_alive: 30
+compression: false
+host_key_verification: true
+
+# Performance and monitoring
+connection_pool_size: 50
+connection_idle_timeout: 300
+max_retries: 3
+retry_delay: 1
+enable_metrics: true
+metrics_port: 9090
+
+# Real-time log capture settings
+log_capture:
+  enabled: true
+  buffer_size: 8192
+  flush_interval: 1.0
+  max_file_size: "100MB"
+  rotation_count: 5
+  compression: true
+
+# File transfer settings
+file_transfer:
+  chunk_size: 32768
+  progress_bar: true
+  verify_checksum: true
+  preserve_permissions: true
+
+# Security settings
+security:
+  strict_host_key_checking: true
+  known_hosts_file: "~/.ssh/known_hosts"
+  key_types: ["ssh-rsa", "ssh-ed25519", "ecdsa-sha2-nistp256"]
+  cipher_preferences: ["aes256-gcm@openssh.com", "aes128-gcm@openssh.com"] 
