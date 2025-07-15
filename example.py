@@ -52,11 +52,11 @@ def example_basic_usage():
                 print(f"  Error: {result.error.strip()}")
         
         # Get metrics
-        metrics = manager.get_metrics_summary()
-        print(f"\nMetrics Summary:")
-        print(f"  Total Operations: {metrics['total_operations']}")
-        print(f"  Success Rate: {metrics['success_rate']:.1f}%")
-        print(f"  Average Duration: {metrics['avg_duration']:.2f}s")
+        # metrics = manager.get_metrics_summary()
+        # print(f"\nMetrics Summary:")
+        # print(f"  Total Operations: {metrics['total_operations']}")
+        # print(f"  Success Rate: {metrics['success_rate']:.1f}%")
+        # print(f"  Average Duration: {metrics['avg_duration']:.2f}s")
 
 
 def example_file_operations():
@@ -281,7 +281,7 @@ def example_programmatic_usage():
     )
     
     # Create metrics collector
-    metrics = MetricsCollector(enable_prometheus=False)
+    # metrics = MetricsCollector(enable_prometheus=False)
     
     # Create SSH manager with custom components
     config = Config(

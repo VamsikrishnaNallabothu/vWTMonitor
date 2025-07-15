@@ -243,10 +243,6 @@ class ConnectionPool:
         """Remove a connection from the pool."""
         if connection_key in self._connections:
             conn_info = self._connections[connection_key]
-            self.stats.active_connections -= 1
-            
-            if conn_info.error_count > 0:
-                self.stats.failed_connections += 1
             
             del self._connections[connection_key]
     

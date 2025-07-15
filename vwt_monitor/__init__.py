@@ -7,7 +7,6 @@ from .config import Config, JumphostConfig, LogCaptureConfig, FileTransferConfig
 from .logger import StructuredLogger, HostLogger
 from .connection_pool import ConnectionPool, JumphostConnectionPool
 from .log_capture import LogCapture
-from .metrics import MetricsCollector
 from .ssh_manager import SSHManager, CommandResult, FileTransferResult
 from .channel_manager import ChannelManager, ChannelCommand, ChannelResult
 from .iperf_manager import IperfManager, IperfTestConfig, IperfTestResult
@@ -39,7 +38,6 @@ __all__ = [
     # Logging and monitoring
     'HostLogger',
     'LogCapture',
-    'MetricsCollector',
     
     # Channel management
     'ChannelManager',
@@ -57,11 +55,6 @@ __all__ = [
     'TrafficTestResult',
     'ProtocolType',
     'Direction',
-    'LatencyMetrics',
-    'ThroughputMetrics',
-    'PacketMetrics',
-    'ConnectionMetrics',
-    'ProtocolSpecificMetrics',
     
     # Result types
     'CommandResult',
