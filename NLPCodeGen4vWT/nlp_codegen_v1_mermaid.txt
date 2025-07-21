@@ -1,0 +1,40 @@
+flowchart TD
+    %% Indexing/Setup
+    subgraph Indexing
+        K1["Dynamic Analyzer<br/>(per SUT codebase)"]
+        K2["Static AST Indexer<br/>(per SUT codebase)"]
+        K3["Merge dynamic + static info"]
+        K1 --> K2 --> K3
+    end
+    K3 --> B
+
+    %% User Session
+    A["User selects SUT(s)<br/>(e.g., ZIA, ZPA, ZTGW, SMCA)"] --> B["Load & merge SUT-specific + shared indexes"]
+    B --> C["User enters test request"]
+    C --> D["LangGraph Workflow Start"]
+    D --> E1["Intent Parsing Node<br/>(LLM, SUT-aware index, prompt includes Python Functions and Function Calls Mapping)"]
+    E1 --> E2["Parameter Filling Node<br/>(LLM, SUT-aware index)"]
+    E2 --> E3["Parameter Resolution Node"]
+    E3 -- "Missing param?" --> F["User Prompt/Training Node<br/>(Ask user, update param map)"]
+    F --> E3
+    E3 -- "All params resolved" --> G["Stub/Test Script Generation Node<br/>(SUT-aware, uses templates)"]
+    G --> H["Script Execution Node"]
+    H --> I["Result Reporting Node"]
+    I --> J["Output to CLI/Web UI"]
+    J -- "User asks follow-up" --> C
+
+    %% Interactions
+    style A fill:#e0f7fa,stroke:#00796b
+    style C fill:#fffde7,stroke:#fbc02d
+    style D fill:#e3f2fd,stroke:#1976d2
+    style E1 fill:#e1bee7,stroke:#7b1fa2
+    style E2 fill:#ffe0b2,stroke:#f57c00
+    style E3 fill:#c8e6c9,stroke:#388e3c
+    style F fill:#ffccbc,stroke:#d84315
+    style G fill:#d1c4e9,stroke:#512da8
+    style H fill:#b3e5fc,stroke:#0288d1
+    style I fill:#f8bbd0,stroke:#c2185b
+    style J fill:#f0f4c3,stroke:#827717
+    style K1 fill:#f5f5f5,stroke:#616161
+    style K2 fill:#f5f5f5,stroke:#616161
+    style K3 fill:#f5f5f5,stroke:#616161
