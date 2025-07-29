@@ -1,5 +1,5 @@
-# vWT Monitor Configuration
-# This file contains the default configuration for vWT Monitor
+# ZTWorkload Manager Configuration
+# This file contains the default configuration for ZTWorkload Manager
 
 # Target hosts to connect to
 hosts:
@@ -27,7 +27,7 @@ jumphost:
 
 # Logging configuration
 log_level: "info"  # debug, info, warn, error, fatal
-log_file: "logs/vwt_monitor.log"
+log_file: "logs/ztw_manager.log"
 log_format: "json"  # json, text, structured
 
 # Advanced SSH settings

@@ -1,33 +1,33 @@
 #!/usr/bin/env python3
 """
-Example script demonstrating vWT Monitor usage.
+Example usage of ZTWorkload Manager
+This demonstrates various features of the ZTWorkload Manager tool.
 """
 
 import os
 import sys
+import time
 from pathlib import Path
+from typing import List, Dict, Any
 
-# Add the ztgw_wrkld_conn_mgr package to the path
-sys.path.insert(0, str(Path(__file__).parent))
-
-from vwt_monitor import (
-    SSHManager, Config, StructuredLogger, TrafficManager, TrafficTestConfig, ProtocolType, Direction
+from ztw_manager import (
+    SSHManager, Config, StructuredLogger, IperfManager, IperfTestConfig,
+    TrafficManager, TrafficTestConfig, ProtocolType, Direction
 )
+
+# Author: Vamsi
 
 
 def example_basic_usage():
-    """Example of basic SSH tool usage."""
-    print("=== Basic SSH Tool Usage Example ===")
+    """
+    Basic usage example - execute commands on multiple hosts.
     
-    # Create a simple configuration
-    config = Config(
-        hosts=["192.168.1.10", "192.168.1.11", "192.168.1.12"],
-        user="root",
-        password="password",  # In production, use key-based auth
-        port=22,
-        timeout=30,
-        max_parallel=5
-    )
+    :return: None
+    """
+    print("=== Basic Usage Example ===")
+    
+    # Load configuration
+    config = Config.load("config.yaml")
     
     # Setup logger
     logger = StructuredLogger(
@@ -36,422 +36,377 @@ def example_basic_usage():
         log_format="json"
     )
     
-    # Use SSH manager
-    with SSHManager(config, logger) as manager:
-        # Execute a simple command
-        print("Executing 'uptime' command...")
-        results = manager.execute_command("uptime")
+    # Create SSH manager
+    ssh_manager = SSHManager(config, logger)
+    
+    try:
+        # Execute a simple command on all hosts
+        print("Executing 'whoami' on all hosts...")
+        results = ssh_manager.execute_command("whoami")
         
-        # Display results
+        print(f"Results: {len(results)} hosts responded")
         for result in results:
-            status = "✅ Success" if result.success else "❌ Failed"
-            print(f"{result.host}: {status} (Exit: {result.exit_code}, Duration: {result.duration:.2f}s)")
-            if result.output:
-                print(f"  Output: {result.output.strip()}")
-            if result.error:
-                print(f"  Error: {result.error.strip()}")
+            print(f"  {result.host}: {result.output.strip()}")
         
-        # Get metrics
-        # metrics = manager.get_metrics_summary()
-        # print(f"\nMetrics Summary:")
-        # print(f"  Total Operations: {metrics['total_operations']}")
-        # print(f"  Success Rate: {metrics['success_rate']:.1f}%")
-        # print(f"  Average Duration: {metrics['avg_duration']:.2f}s")
+        # Execute a command with timeout
+        print("\nExecuting 'sleep 5 && echo done' with timeout...")
+        results = ssh_manager.execute_command("sleep 5 && echo done", timeout=10)
+        
+        for result in results:
+            print(f"  {result.host}: {'Success' if result.success else 'Failed'}")
+        
+    finally:
+        ssh_manager.close()
 
 
 def example_file_operations():
-    """Example of file operations."""
+    """
+    File operations example - upload and download files.
+    
+    :return: None
+    """
     print("\n=== File Operations Example ===")
     
-    # Create configuration
-    config = Config(
-        hosts=["192.168.1.10", "192.168.1.11"],
-        user="root",
-        password="password",
-        port=22,
-        timeout=30,
-        max_parallel=3
-    )
+    # Load configuration
+    config = Config.load("config.yaml")
+    logger = StructuredLogger(level="info", log_file="logs/file_ops.log")
+    ssh_manager = SSHManager(config, logger)
     
-    logger = StructuredLogger(level="info")
-    
-    with SSHManager(config, logger) as manager:
+    try:
         # Create a test file
         test_file = "test_upload.txt"
         with open(test_file, "w") as f:
-            f.write("This is a test file for SSH Tool upload.\n")
+            f.write("This is a test file for upload\n")
         
-        try:
-            # Upload file
-            print("Uploading test file...")
-            upload_results = manager.upload_file(test_file, "/tmp/test_upload.txt")
-            
-            for result in upload_results:
-                status = "✅ Success" if result.success else "❌ Failed"
-                print(f"{result.host}: {status} (Size: {result.size} bytes, Duration: {result.duration:.2f}s)")
-            
-            # Download file
-            print("\nDownloading file...")
-            download_results = manager.download_file("/tmp/test_upload.txt", "downloads/")
-            
-            for result in download_results:
-                status = "✅ Success" if result.success else "❌ Failed"
-                print(f"{result.host}: {status} (Size: {result.size} bytes, Duration: {result.duration:.2f}s)")
+        # Upload file to all hosts
+        print("Uploading test file to all hosts...")
+        upload_results = ssh_manager.upload_file(test_file, "/tmp/test_upload.txt")
         
-        finally:
-            # Cleanup
-            if os.path.exists(test_file):
-                os.remove(test_file)
+        for result in upload_results:
+            print(f"  {result.host}: {'Success' if result.success else 'Failed'}")
+            if result.success:
+                print(f"    Size: {result.size} bytes, Duration: {result.duration:.2f}s")
+        
+        # Download file from all hosts
+        print("\nDownloading file from all hosts...")
+        download_results = ssh_manager.download_file("/tmp/test_upload.txt", "downloads/")
+        
+        for result in download_results:
+            print(f"  {result.host}: {'Success' if result.success else 'Failed'}")
+            if result.success:
+                print(f"    Local path: {result.local_path}")
+        
+        # Clean up
+        os.remove(test_file)
+        
+    finally:
+        ssh_manager.close()
 
 
 def example_log_capture():
-    """Example of real-time log capture."""
+    """
+    Log capture example - real-time log monitoring.
+    
+    :return: None
+    """
     print("\n=== Log Capture Example ===")
     
-    config = Config(
-        hosts=["192.168.1.10"],
-        user="root",
-        password="password",
-        port=22,
-        timeout=30,
-        max_parallel=1
-    )
+    # Load configuration
+    config = Config.load("config.yaml")
+    logger = StructuredLogger(level="info", log_file="logs/log_capture.log")
+    ssh_manager = SSHManager(config, logger)
     
-    logger = StructuredLogger(level="info")
-    
-    with SSHManager(config, logger) as manager:
-        print("Starting log capture (press Ctrl+C to stop)...")
-        print("This will capture logs from /var/log/syslog")
+    try:
+        # Start log capture on all hosts
+        print("Starting log capture on all hosts...")
+        ssh_manager.start_log_capture("/var/log/syslog")
         
-        try:
-            # Start log capture
-            manager.start_log_capture("/var/log/syslog")
-            
-            # Keep running for a few seconds
-            import time
-            time.sleep(10)
-            
-        except KeyboardInterrupt:
-            print("\nStopping log capture...")
-            manager.stop_log_capture()
+        # Let it run for a few seconds
+        print("Capturing logs for 10 seconds...")
+        time.sleep(10)
+        
+        # Stop log capture
+        print("Stopping log capture...")
+        ssh_manager.stop_log_capture()
+        
+        print("Log capture completed")
+        
+    finally:
+        ssh_manager.close()
 
 
 def example_advanced_configuration():
-    """Example of advanced configuration."""
+    """
+    Advanced configuration example.
+    
+    :return: None
+    """
     print("\n=== Advanced Configuration Example ===")
     
-    # Load configuration from file
-    try:
-        config = Config.load("config.yaml")
-        print("Loaded configuration from config.yaml")
-        print(f"  Hosts: {len(config.hosts)}")
-        print(f"  User: {config.user}")
-        print(f"  Max Parallel: {config.max_parallel}")
-        print(f"  Log Level: {config.log_level}")
-        
-        if config.jumphost:
-            print(f"  Jumphost: {config.jumphost.host}")
-        
-    except FileNotFoundError:
-        print("config.yaml not found, using default configuration")
-        config = Config(
-            hosts=["192.168.1.10"],
-            user="root",
-            password="password"
-        )
+    # Create configuration programmatically
+    config = Config(
+        hosts=["192.168.1.10", "192.168.1.11", "192.168.1.12"],
+        user="admin",
+        password="password123",
+        port=22,
+        timeout=30,
+        max_parallel=5,
+        log_level="debug",
+        log_file="logs/advanced.log",
+        log_format="json",
+        banner_timeout=240,
+        keep_alive=30,
+        compression=False,
+        host_key_verification=True,
+        connection_pool_size=20,
+        connection_idle_timeout=300,
+        max_retries=3,
+        retry_delay=1
+    )
     
-    # Use advanced features
+    # Setup logger with custom configuration
     logger = StructuredLogger(
         level=config.log_level,
         log_file=config.log_file,
-        log_format=config.log_format
+        log_format=config.log_format,
+        enable_console=True,
+        enable_file=True
     )
     
-    with SSHManager(config, logger) as manager:
-        # Execute command with advanced features
-        results = manager.execute_command("echo 'Hello from SSH Tool!'")
+    # Create SSH manager with advanced configuration
+    ssh_manager = SSHManager(config, logger)
+    
+    try:
+        # Test the configuration
+        print("Testing advanced configuration...")
+        results = ssh_manager.execute_command("echo 'Advanced config test'")
         
         for result in results:
-            print(f"{result.host}: {result.output.strip()}")
+            print(f"  {result.host}: {result.output.strip()}")
         
-
+    finally:
+        ssh_manager.close()
 
 
 def example_chain_commands():
-    """Example of chain command execution."""
-    print("\n=== Chain Command Execution Example ===")
+    """
+    Chain commands example - execute multiple commands in sequence.
     
-    config = Config(
-        hosts=["192.168.1.10", "192.168.1.11"],
-        user="root",
-        password="password",
-        port=22,
-        timeout=30,
-        max_parallel=3
-    )
+    :return: None
+    """
+    print("\n=== Chain Commands Example ===")
     
-    logger = StructuredLogger(level="info")
+    # Load configuration
+    config = Config.load("config.yaml")
+    logger = StructuredLogger(level="info", log_file="logs/chain_commands.log")
+    ssh_manager = SSHManager(config, logger)
     
-    with SSHManager(config, logger) as manager:
-        # Execute a chain of commands that depend on each other
-        chain_commands = [
+    try:
+        # Define a chain of commands
+        commands = [
+            "pwd",
             "cd /tmp",
             "pwd",
-            "mkdir -p test_chain",
-            "cd test_chain",
-            "echo 'Hello from chain execution' > test.txt",
             "ls -la",
-            "cat test.txt",
-            "cd ..",
-            "rm -rf test_chain"
+            "echo 'Chain completed'"
         ]
         
         print("Executing chain of commands...")
-        chain_results = manager.execute_chain_commands(chain_commands)
+        chain_results = ssh_manager.execute_chain_commands(commands)
         
-        # Display results
-        for host, host_results in chain_results.items():
+        for host, results in chain_results.items():
             print(f"\nHost: {host}")
-            for i, result in enumerate(host_results, 1):
-                status = "✅ Success" if result.success else "❌ Failed"
-                print(f"  {status} Command {i}: {result.command}")
-                if result.output:
-                    print(f"    Output: {result.output.strip()}")
+            for i, result in enumerate(results):
+                print(f"  Command {i+1}: {result.command}")
+                print(f"    Success: {result.success}")
+                print(f"    Output: {result.output.strip()}")
                 if result.error:
                     print(f"    Error: {result.error}")
-                print(f"    Duration: {result.duration:.2f}s")
+        
+    finally:
+        ssh_manager.close()
 
 
 def example_interactive_commands():
-    """Example of interactive commands with expect patterns."""
+    """
+    Interactive commands example - commands that require user input.
+    
+    :return: None
+    """
     print("\n=== Interactive Commands Example ===")
     
-    config = Config(
-        hosts=["192.168.1.10"],
-        user="root",
-        password="password",
-        port=22,
-        timeout=30,
-        max_parallel=1
-    )
+    # Load configuration
+    config = Config.load("config.yaml")
+    logger = StructuredLogger(level="info", log_file="logs/interactive.log")
+    ssh_manager = SSHManager(config, logger)
     
-    logger = StructuredLogger(level="info")
-    
-    with SSHManager(config, logger) as manager:
-        # Interactive commands that require responses
-        interactive_commands = [
-            ("sudo -i", ["password:"]),
-            ("password", []),  # Response to password prompt
-            ("whoami", []),
-            ("pwd", []),
-            ("exit", [])  # Exit sudo
+    try:
+        # Define interactive commands
+        commands = [
+            ("sudo -l", ["[sudo] password for admin:"]),
+            ("echo 'password123'", []),
+            ("whoami", [])
         ]
         
         print("Executing interactive commands...")
-        interactive_results = manager.execute_interactive_commands(
-            interactive_commands, timeout=30.0
-        )
+        interactive_results = ssh_manager.execute_interactive_commands(commands)
         
-        # Display results
-        for host, host_results in interactive_results.items():
+        for host, results in interactive_results.items():
             print(f"\nHost: {host}")
-            for i, result in enumerate(host_results, 1):
-                status = "✅ Success" if result.success else "❌ Failed"
-                print(f"  {status} Command {i}: {result.command}")
-                if result.output:
-                    print(f"    Output: {result.output.strip()}")
-                if result.error:
-                    print(f"    Error: {result.error}")
+            for i, result in enumerate(results):
+                print(f"  Step {i+1}: {result.command}")
+                print(f"    Success: {result.success}")
+                print(f"    Output: {result.output.strip()}")
+        
+    finally:
+        ssh_manager.close()
 
 
 def example_programmatic_usage():
-    """Example of programmatic usage."""
+    """
+    Programmatic usage example - using the API directly.
+    
+    :return: None
+    """
     print("\n=== Programmatic Usage Example ===")
     
-    from vwt_monitor import LogCapture, LogCaptureConfig, MetricsCollector
+    # Load configuration
+    config = Config.load("config.yaml")
+    logger = StructuredLogger(level="info", log_file="logs/programmatic.log")
     
-    # Create custom log capture configuration
-    log_config = LogCaptureConfig(
-        buffer_size=16384,
-        flush_interval=0.5,
-        max_file_size="50MB",
-        rotation_count=3,
-        compression=True,
-        real_time_display=True
-    )
+    # Create managers
+    ssh_manager = SSHManager(config, logger)
+    traffic_manager = TrafficManager(ssh_manager, config, logger)
     
-    # Create metrics collector
-    # metrics = MetricsCollector(enable_prometheus=False)
-    
-    # Create SSH manager with custom components
-    config = Config(
-        hosts=["192.168.1.10"],
-        user="root",
-        password="password"
-    )
-    
-    logger = StructuredLogger(level="debug")
-    
-    with SSHManager(config, logger) as manager:
-        # Execute multiple commands
-        commands = ["whoami", "pwd", "date"]
+    try:
+        # Execute commands and collect metrics
+        print("Executing commands and collecting metrics...")
         
-        for cmd in commands:
-            print(f"Executing: {cmd}")
-            results = manager.execute_command(cmd)
-            
-            for result in results:
-                if result.success:
-                    print(f"  {result.host}: {result.output.strip()}")
-                else:
-                    print(f"  {result.host}: Error - {result.error}")
+        # System information
+        sys_info_results = ssh_manager.execute_command("uname -a")
+        for result in sys_info_results:
+            print(f"  {result.host}: {result.output.strip()}")
         
-        # Get channel information
-        channel_info = manager.get_channel_info()
-        print(f"\nChannel Information:")
-        for host, info in channel_info.items():
-            print(f"  {host}: {info}")
+        # Disk usage
+        disk_results = ssh_manager.execute_command("df -h /")
+        for result in disk_results:
+            print(f"  {result.host} disk usage: {result.output.strip()}")
+        
+        # Memory usage
+        memory_results = ssh_manager.execute_command("free -h")
+        for result in memory_results:
+            print(f"  {result.host} memory: {result.output.strip()}")
+        
+        # Get metrics summary
+        metrics = ssh_manager.get_metrics_summary()
+        print(f"\nMetrics Summary:")
+        print(f"  Total commands executed: {metrics.get('total_commands', 0)}")
+        print(f"  Successful commands: {metrics.get('successful_commands', 0)}")
+        print(f"  Failed commands: {metrics.get('failed_commands', 0)}")
+        print(f"  Average command duration: {metrics.get('avg_duration', 0):.2f}s")
+        
+    finally:
+        ssh_manager.close()
 
 
 def example_traffic_testing():
-    """Example of traffic testing."""
+    """
+    Traffic testing example - network connectivity tests.
+    
+    :return: None
+    """
     print("\n=== Traffic Testing Example ===")
     
     # Load configuration
+    config = Config.load("config.yaml")
+    logger = StructuredLogger(level="info", log_file="logs/traffic_tests.log")
+    ssh_manager = SSHManager(config, logger)
+    traffic_manager = TrafficManager(ssh_manager, config, logger)
+    
     try:
-        config = Config.load("config.yaml")
-        print("Loaded configuration from config.yaml")
-    except FileNotFoundError:
-        print("config.yaml not found, using default configuration")
-        config = Config(
-            hosts=["192.168.1.10", "192.168.1.11", "192.168.1.12"],
-            user="root",
-            password="password"
-        )
-    
-    # Setup logger
-    logger = StructuredLogger(level="info")
-    
-    # Use SSH manager and traffic manager
-    with SSHManager(config, logger) as manager:
-        traffic_manager = TrafficManager(manager, config, logger)
+        # Define test pairs
+        test_pairs = [
+            {
+                'source_host': '192.168.1.10',
+                'target_host': '192.168.1.11',
+                'target_port': 80
+            },
+            {
+                'source_host': '192.168.1.11',
+                'target_host': '192.168.1.10',
+                'target_port': 22
+            }
+        ]
         
-        # Test TCP connectivity
-        print("Testing TCP connectivity...")
-        tcp_config = TrafficTestConfig(
+        # Create test configuration
+        test_config = TrafficTestConfig(
             protocol=ProtocolType.TCP,
             direction=Direction.EAST_WEST,
-            source_hosts=["192.168.1.10", "192.168.1.11"],
-            target_hosts=["192.168.1.12"],
-            target_ports=[22, 80, 443],
+            source_hosts=['192.168.1.10', '192.168.1.11'],
+            target_hosts=['192.168.1.11', '192.168.1.10'],
+            target_ports=[80, 22],
             duration=30,
             interval=1.0,
             packet_size=1024,
             concurrent_connections=5,
-            timeout=10
+            timeout=10,
+            retries=2
         )
-        # Build test_pairs for TCP
-        test_pairs = []
-        for s in tcp_config.source_hosts:
-            for t in tcp_config.target_hosts:
-                test_pairs.append({s: t})
-        tcp_results = traffic_manager.run_traffic_test(test_pairs, tcp_config)
+        
+        print("Running traffic tests...")
+        results = traffic_manager.run_traffic_test(test_pairs, test_config)
         
         # Display results
-        for test_id, result in tcp_results.items():
+        for test_id, result in results.items():
             print(f"\nTest: {test_id}")
-            print(f"  Protocol: {result.protocol.value}")
-            print(f"  Source: {result.source_host} → Target: {result.target_host}:{result.target_port}")
+            print(f"  Protocol: {result.protocol}")
+            print(f"  Source: {result.source_host}")
+            print(f"  Target: {result.target_host}:{result.target_port}")
             print(f"  Success: {result.success}")
+            print(f"  Duration: {result.duration_seconds:.2f}s")
             
-            if result.success and result.latency:
-                print(f"  Avg Latency: {result.latency.avg_latency_ms:.1f}ms")
-                print(f"  Min Latency: {result.latency.min_latency_ms:.1f}ms")
-                print(f"  Max Latency: {result.latency.max_latency_ms:.1f}ms")
+            if result.latency:
+                print(f"  Latency: {result.latency.avg_latency_ms:.2f}ms avg")
             
-            if result.success and result.throughput:
-                print(f"  Avg Throughput: {result.throughput.avg_throughput_mbps:.2f} MB/s")
-                print(f"  Peak Throughput: {result.throughput.peak_throughput_mbps:.2f} MB/s")
+            if result.throughput:
+                print(f"  Throughput: {result.throughput.avg_throughput_mbps:.2f} Mbps avg")
             
-            if result.success and result.packets:
+            if result.packets:
                 print(f"  Packet Loss: {result.packets.packet_loss_percent:.2f}%")
         
-        # Test HTTP connectivity
-        print("\nTesting HTTP connectivity...")
-        http_config = TrafficTestConfig(
-            protocol=ProtocolType.HTTP,
-            direction=Direction.EAST_WEST,
-            source_hosts=["192.168.1.10"],
-            target_hosts=["192.168.1.12"],
-            target_ports=[80, 8080],
-            duration=20,
-            interval=2.0,
-            timeout=15
-        )
-        # Build test_pairs for HTTP
-        http_test_pairs = []
-        for s in http_config.source_hosts:
-            for t in http_config.target_hosts:
-                http_test_pairs.append({s: t})
-        http_results = traffic_manager.run_traffic_test(http_test_pairs, http_config)
-        
-        # Display HTTP results
-        for test_id, result in http_results.items():
-            print(f"\nHTTP Test: {test_id}")
-            print(f"  Success: {result.success}")
-            
-            if result.success and result.protocol_specific:
-                if result.protocol_specific.http_status_codes:
-                    print("  HTTP Status Codes:")
-                    for status_code, count in result.protocol_specific.http_status_codes.items():
-                        print(f"    {status_code}: {count}")
-        
         # Export results
-        print("\nExporting results...")
-        traffic_manager.export_results(tcp_results, "tcp_test_results.json", "json")
-        traffic_manager.export_results(http_results, "http_test_results.json", "json")
-        print("Results exported to JSON files")
+        traffic_manager.export_results(results, "traffic_test_results.json", "json")
+        print("\nResults exported to traffic_test_results.json")
+        
+    finally:
+        ssh_manager.close()
 
 
 def main():
-    """Main example function."""
-    print("vWT Monitor - Usage Examples")
-    print("=" * 50)
+    """
+    Main function to run all examples.
     
-    # Check if we have a config file
-    if not os.path.exists("config.yaml"):
-        print("Note: config.yaml not found. Examples will use default configuration.")
-        print("Create a config.yaml file for more advanced examples.\n")
+    :return: None
+    """
+    print("ZTWorkload Manager Examples")
+    print("===================")
     
     try:
         # Run examples
         example_basic_usage()
         example_file_operations()
+        example_log_capture()
+        example_advanced_configuration()
         example_chain_commands()
         example_interactive_commands()
-        example_advanced_configuration()
         example_programmatic_usage()
         example_traffic_testing()
         
-        # Log capture example (commented out as it requires real hosts)
-        # example_log_capture()
-        
-        print("\n" + "=" * 50)
-        print("Examples completed successfully!")
-        print("\nTo run with real hosts:")
-        print("1. Create a config.yaml file with your host details")
-        print("2. Update the host IPs in the examples")
-        print("3. Use key-based authentication for security")
-        print("\nvWT Monitor features:")
-        print("- Chain command execution: Commands that depend on each other")
-        print("- Interactive commands: Commands with expect patterns")
-        print("- Channel management: Persistent SSH channels for complex workflows")
-        print("- Traffic testing: Network protocol testing with detailed metrics")
+        print("\nAll examples completed successfully!")
         
     except Exception as e:
         print(f"Error running examples: {e}")
-        print("Make sure you have the required dependencies installed:")
-        print("  pip install -r requirements.txt")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

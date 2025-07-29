@@ -1,15 +1,17 @@
 """
-Configuration management for SSH Tool.
+Configuration management for ZTWorkload Manager.
+Provides dataclasses and utilities for managing SSH connection settings,
+logging configuration, and advanced features.
 """
 
 import os
 import yaml
-import logging
-from pathlib import Path
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field
-from tenacity import retry, stop_after_attempt, wait_exponential
 import configparser
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict, Any
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+# Author: Vamsi
 
 
 @dataclass
@@ -32,6 +34,9 @@ class LogCaptureConfig:
     max_file_size: str = "100MB"
     rotation_count: int = 5
     compression: bool = True
+    real_time_display: bool = True
+    filter_patterns: List[str] = field(default_factory=list)
+    exclude_patterns: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -70,7 +75,7 @@ class Config:
     
     # Logging configuration
     log_level: str = "info"
-    log_file: str = "logs/vwt_monitor.log"
+    log_file: str = "logs/ztw_manager.log"
     log_format: str = "json"
     
     # Advanced SSH settings
@@ -139,14 +144,12 @@ class Config:
     def load(cls, filename: str) -> 'Config':
         """
         Load configuration from YAML (.yaml/.yml) or INI/CFG (.cfg/.ini) file.
-        Args:
-            filename: Path to configuration file
-        Returns:
-            Config instance
-        Raises:
-            FileNotFoundError: If config file doesn't exist
-            yaml.YAMLError: If YAML config file is invalid
-            ValueError: If configuration is invalid
+        
+        :param filename: Path to configuration file
+        :return: Config instance
+        :raises FileNotFoundError: If config file doesn't exist
+        :raises yaml.YAMLError: If YAML config file is invalid
+        :raises ValueError: If configuration is invalid
         """
         if not os.path.exists(filename):
             raise FileNotFoundError(f"Configuration file not found: {filename}")
@@ -218,8 +221,7 @@ class Config:
         """
         Save configuration to YAML file.
         
-        Args:
-            filename: Path to save configuration file
+        :param filename: Path to save configuration file
         """
         # Convert dataclasses to dictionaries
         data = {
@@ -286,8 +288,7 @@ class Config:
         """
         Merge command-line arguments into configuration.
         
-        Args:
-            **kwargs: Command-line arguments to merge
+        :param **kwargs: Command-line arguments to merge
         """
         if 'hosts' in kwargs and kwargs['hosts']:
             self.hosts = kwargs['hosts'].split(',')

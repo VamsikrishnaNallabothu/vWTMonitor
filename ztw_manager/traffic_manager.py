@@ -1,5 +1,5 @@
 """
-Traffic Manager for vWT Monitor.
+Traffic Manager for ZTWorkload Manager.
 Handles various network protocols and collects detailed traffic metrics.
 """
 
@@ -24,6 +24,9 @@ from enum import Enum
 from .ssh_manager import SSHManager
 from .config import Config
 from .logger import StructuredLogger
+from .iperf_manager import IperfManager, IperfTestConfig, IperfTestResult
+
+# Author: Vamsi
 
 
 class ProtocolType(Enum):
@@ -160,14 +163,26 @@ class TrafficManager:
         """
         Initialize traffic manager.
         
-        Args:
-            ssh_manager: SSH manager instance
-            config: Configuration instance
-            logger: Logger instance
+        :param ssh_manager: SSH manager instance
+        :param config: Configuration instance
+        :param logger: Logger instance
         """
         self.ssh_manager = ssh_manager
         self.config = config
         self.logger = logger or StructuredLogger()
+        
+        # Initialize iperf manager for TCP/UDP tests
+        iperf_config = IperfTestConfig(
+            test_duration=60,
+            parallel_streams=1,
+            mtu_size=1460,
+            interval=2,
+            output_format="json",
+            output_dir="traffic_test_results",
+            preserve_channels=True,
+            capture_output=True
+        )
+        self.iperf_manager = IperfManager(ssh_manager, iperf_config, logger)
         
         # Test tracking
         self.active_tests: Dict[str, TrafficTestResult] = {}
@@ -188,11 +203,10 @@ class TrafficManager:
     def run_traffic_test(self, test_pairs: List[dict], test_config: TrafficTestConfig) -> Dict[str, TrafficTestResult]:
         """
         Run traffic test for a given list of source-target host pairs.
-        Args:
-            test_pairs: List of {source_host: target_host} dicts
-            test_config: Traffic test configuration (ports, protocol, etc.)
-        Returns:
-            Dictionary mapping test identifiers to results
+        
+        :param test_pairs: List of {source_host: target_host} dicts
+        :param test_config: Traffic test configuration (ports, protocol, etc.)
+        :return: Dictionary mapping test identifiers to results
         """
         self.logger.info(f"Starting traffic test: {test_config.protocol.value} {test_config.direction.value}")
         results = {}
@@ -262,155 +276,195 @@ class TrafficManager:
     
     def _test_tcp_connectivity(self, test_id: str, test_config: TrafficTestConfig,
                               source_host: str, target_host: str, target_port: int) -> TrafficTestResult:
-        """Test TCP connectivity and collect metrics."""
+        """Test TCP connectivity using iperf3 from source host to target host."""
         self.logger.info(f"Testing TCP connectivity: {source_host} -> {target_host}:{target_port}")
         
-        latency_samples = []
-        throughput_samples = []
-        timestamps = []
-        packets_sent = 0
-        packets_received = 0
-        connection_times = []
-        
-        start_time = time.time()
-        end_time = start_time + test_config.duration
-        
-        while time.time() < end_time:
-            sample_start = time.time()
+        try:
+            # Start iperf server on target host
+            server_started = self.iperf_manager.start_iperf_server(
+                server_host=target_host, 
+                port=target_port
+            )
             
-            try:
-                # Create TCP connection
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(test_config.timeout)
-                
-                conn_start = time.time()
-                sock.connect((target_host, target_port))
-                conn_time = (time.time() - conn_start) * 1000
-                connection_times.append(conn_time)
-                
-                # Send data
-                data = b'X' * test_config.packet_size
-                sock.send(data)
-                packets_sent += 1
-                
-                # Receive response
-                response = sock.recv(test_config.packet_size)
-                packets_received += 1
-                
-                sock.close()
-                
-                # Calculate latency
-                latency = (time.time() - sample_start) * 1000
-                latency_samples.append(latency)
-                
-                # Calculate throughput
-                throughput = (len(data) + len(response)) / latency * 1000 / 1024 / 1024  # MB/s
-                throughput_samples.append(throughput)
-                
-                timestamps.append(datetime.now())
-                
-            except Exception as e:
-                self.logger.warning(f"TCP test failed: {e}")
+            if not server_started:
+                raise Exception(f"Failed to start iperf server on {target_host}")
             
-            time.sleep(test_config.interval)
-        
-        # Calculate metrics
-        latency_metrics = self._calculate_latency_metrics(latency_samples)
-        throughput_metrics = self._calculate_throughput_metrics(throughput_samples)
-        packet_metrics = self._calculate_packet_metrics(packets_sent, packets_received)
-        connection_metrics = self._calculate_connection_metrics(connection_times)
-        
-        return TrafficTestResult(
-            test_id=test_id,
-            protocol=ProtocolType.TCP,
-            direction=test_config.direction,
-            source_host=source_host,
-            target_host=target_host,
-            target_port=target_port,
-            start_time=datetime.now(),
-            end_time=datetime.now(),
-            duration_seconds=test_config.duration,
-            success=True,
-            latency=latency_metrics,
-            throughput=throughput_metrics,
-            packets=packet_metrics,
-            connections=connection_metrics,
-            raw_latency_samples=latency_samples,
-            raw_throughput_samples=throughput_samples,
-            raw_timestamps=timestamps
-        )
+            # Wait a moment for server to start
+            time.sleep(2)
+            
+            # Start iperf client on source host
+            client_started = self.iperf_manager.start_iperf_client(
+                client_host=source_host,
+                server_host=target_host,
+                port=target_port,
+                duration=test_config.duration,
+                parallel_streams=test_config.concurrent_connections,
+                mtu_size=test_config.packet_size,
+                interval=test_config.interval
+            )
+            
+            if not client_started:
+                raise Exception(f"Failed to start iperf client on {source_host}")
+            
+            # Wait for test completion
+            time.sleep(test_config.duration + 5)
+            
+            # Stop client and server
+            self.iperf_manager.stop_iperf_client(source_host, target_host)
+            self.iperf_manager.stop_iperf_server(target_host)
+            
+            # Collect and parse results
+            output_file = f"/tmp/iperf_client_{source_host}_to_{target_host}.json"
+            local_output_file = f"traffic_test_results/{test_id}_tcp_results.json"
+            
+            # Download result file
+            downloaded = self.iperf_manager.collect_stats_file_from_host(
+                source_host, output_file, local_output_file
+            )
+            
+            if downloaded:
+                # Parse iperf results
+                iperf_summary = self.iperf_manager.parse_iperf_file(local_output_file)
+                
+                # Convert iperf results to TrafficTestResult
+                return self._convert_iperf_to_traffic_result(
+                    test_id, test_config, source_host, target_host, target_port,
+                    iperf_summary, ProtocolType.TCP
+                )
+            else:
+                raise Exception("Failed to collect iperf results")
+                
+        except Exception as e:
+            self.logger.error(f"TCP connectivity test failed: {e}")
+            return TrafficTestResult(
+                test_id=test_id,
+                protocol=ProtocolType.TCP,
+                direction=test_config.direction,
+                source_host=source_host,
+                target_host=target_host,
+                target_port=target_port,
+                start_time=datetime.now(),
+                end_time=datetime.now(),
+                duration_seconds=test_config.duration,
+                success=False,
+                error_message=str(e)
+            )
     
     def _test_udp_connectivity(self, test_id: str, test_config: TrafficTestConfig,
                               source_host: str, target_host: str, target_port: int) -> TrafficTestResult:
-        """Test UDP connectivity and collect metrics."""
+        """Test UDP connectivity using iperf3 from source host to target host."""
         self.logger.info(f"Testing UDP connectivity: {source_host} -> {target_host}:{target_port}")
         
-        latency_samples = []
-        throughput_samples = []
-        timestamps = []
-        packets_sent = 0
-        packets_received = 0
-        jitter_samples = []
-        
-        start_time = time.time()
-        end_time = start_time + test_config.duration
-        
-        while time.time() < end_time:
-            sample_start = time.time()
+        try:
+            # Start iperf server on target host
+            server_started = self.iperf_manager.start_iperf_server(
+                server_host=target_host, 
+                port=target_port
+            )
             
-            try:
-                # Create UDP socket
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sock.settimeout(test_config.timeout)
-                
-                # Send data
-                data = b'X' * test_config.packet_size
-                sock.sendto(data, (target_host, target_port))
-                packets_sent += 1
-                
-                # Try to receive response (UDP is unreliable)
-                try:
-                    response, addr = sock.recvfrom(test_config.packet_size)
-                    packets_received += 1
-                    
-                    # Calculate latency
-                    latency = (time.time() - sample_start) * 1000
-                    latency_samples.append(latency)
-                    
-                    # Calculate jitter
-                    if len(latency_samples) > 1:
-                        jitter = abs(latency - latency_samples[-2])
-                        jitter_samples.append(jitter)
-                    
-                    # Calculate throughput
-                    throughput = (len(data) + len(response)) / latency * 1000 / 1024 / 1024
-                    throughput_samples.append(throughput)
-                    
-                except socket.timeout:
-                    # No response received
-                    pass
-                
-                sock.close()
-                timestamps.append(datetime.now())
-                
-            except Exception as e:
-                self.logger.warning(f"UDP test failed: {e}")
+            if not server_started:
+                raise Exception(f"Failed to start iperf server on {target_host}")
             
-            time.sleep(test_config.interval)
+            # Wait a moment for server to start
+            time.sleep(2)
+            
+            # Start iperf client on source host with UDP mode
+            client_started = self.iperf_manager.start_iperf_client(
+                client_host=source_host,
+                server_host=target_host,
+                port=target_port,
+                duration=test_config.duration,
+                parallel_streams=test_config.concurrent_connections,
+                mtu_size=test_config.packet_size,
+                interval=test_config.interval
+            )
+            
+            if not client_started:
+                raise Exception(f"Failed to start iperf client on {source_host}")
+            
+            # Wait for test completion
+            time.sleep(test_config.duration + 5)
+            
+            # Stop client and server
+            self.iperf_manager.stop_iperf_client(source_host, target_host)
+            self.iperf_manager.stop_iperf_server(target_host)
+            
+            # Collect and parse results
+            output_file = f"/tmp/iperf_client_{source_host}_to_{target_host}.json"
+            local_output_file = f"traffic_test_results/{test_id}_udp_results.json"
+            
+            # Download result file
+            downloaded = self.iperf_manager.collect_stats_file_from_host(
+                source_host, output_file, local_output_file
+            )
+            
+            if downloaded:
+                # Parse iperf results
+                iperf_summary = self.iperf_manager.parse_iperf_file(local_output_file)
+                
+                # Convert iperf results to TrafficTestResult
+                return self._convert_iperf_to_traffic_result(
+                    test_id, test_config, source_host, target_host, target_port,
+                    iperf_summary, ProtocolType.UDP
+                )
+            else:
+                raise Exception("Failed to collect iperf results")
+                
+        except Exception as e:
+            self.logger.error(f"UDP connectivity test failed: {e}")
+            return TrafficTestResult(
+                test_id=test_id,
+                protocol=ProtocolType.UDP,
+                direction=test_config.direction,
+                source_host=source_host,
+                target_host=target_host,
+                target_port=target_port,
+                start_time=datetime.now(),
+                end_time=datetime.now(),
+                duration_seconds=test_config.duration,
+                success=False,
+                error_message=str(e)
+            )
+    
+    def _convert_iperf_to_traffic_result(self, test_id: str, test_config: TrafficTestConfig,
+                                       source_host: str, target_host: str, target_port: int,
+                                       iperf_summary: Dict[str, Any], protocol: ProtocolType) -> TrafficTestResult:
+        """Convert iperf results to TrafficTestResult."""
         
-        # Calculate metrics
-        latency_metrics = self._calculate_latency_metrics(latency_samples)
-        throughput_metrics = self._calculate_throughput_metrics(throughput_samples)
+        # Extract metrics from iperf summary
+        avg_throughput = iperf_summary.get('average_throughput', 0.0)
+        throughput_percentiles = iperf_summary.get('throughput_percentiles', {})
+        
+        # Convert Gbits/sec to MB/s for consistency
+        avg_throughput_mbps = avg_throughput * 125  # 1 Gbit = 125 MB
+        
+        # Create throughput metrics
+        throughput_metrics = ThroughputMetrics(
+            total_bytes_sent=iperf_summary.get('sum_sent', {}).get('bytes', 0),
+            total_bytes_received=iperf_summary.get('sum_received', {}).get('bytes', 0),
+            avg_throughput_mbps=avg_throughput_mbps,
+            peak_throughput_mbps=throughput_percentiles.get(99, avg_throughput_mbps),
+            min_throughput_mbps=throughput_percentiles.get(10, avg_throughput_mbps),
+            throughput_samples=[avg_throughput_mbps]  # Simplified for now
+        )
+        
+        # Create packet metrics
+        packets_sent = iperf_summary.get('sum_sent', {}).get('packets', 0)
+        packets_received = iperf_summary.get('sum_received', {}).get('packets', 0)
         packet_metrics = self._calculate_packet_metrics(packets_sent, packets_received)
         
-        # Calculate UDP-specific metrics
+        # Create protocol-specific metrics
         protocol_metrics = ProtocolSpecificMetrics()
-        if jitter_samples:
-            protocol_metrics.udp_jitter_ms = statistics.mean(jitter_samples)
+        if protocol == ProtocolType.UDP:
+            # Extract jitter from iperf results if available
+            protocol_metrics.udp_jitter_ms = iperf_summary.get('jitter_ms', 0.0)
+        elif protocol == ProtocolType.TCP:
+            # Extract retransmissions if available
+            protocol_metrics.tcp_retransmissions = iperf_summary.get('retransmissions', 0)
         
         return TrafficTestResult(
             test_id=test_id,
-            protocol=ProtocolType.UDP,
+            protocol=protocol,
             direction=test_config.direction,
             source_host=source_host,
             target_host=target_host,
@@ -419,13 +473,11 @@ class TrafficManager:
             end_time=datetime.now(),
             duration_seconds=test_config.duration,
             success=True,
-            latency=latency_metrics,
             throughput=throughput_metrics,
             packets=packet_metrics,
             protocol_specific=protocol_metrics,
-            raw_latency_samples=latency_samples,
-            raw_throughput_samples=throughput_samples,
-            raw_timestamps=timestamps
+            raw_throughput_samples=[avg_throughput_mbps],
+            raw_timestamps=[datetime.now()]
         )
     
     def _test_http_connectivity(self, test_id: str, test_config: TrafficTestConfig,

@@ -37,6 +37,9 @@ from .config import Config
 from .logger import StructuredLogger
 
 
+# Author: Vamsi
+
+
 @dataclass
 class IperfTestConfig:
     """Configuration for iperf test."""
@@ -74,10 +77,9 @@ class IperfManager:
         """
         Initialize iperf manager.
         
-        Args:
-            ssh_manager: SSH manager instance
-            config: Iperf test configuration
-            logger: Logger instance
+        :param ssh_manager: SSH manager instance
+        :param config: Iperf test configuration
+        :param logger: Logger instance
         """
         self.ssh_manager = ssh_manager
         self.config = config
@@ -100,39 +102,30 @@ class IperfManager:
         """
         Run iperf tests across multiple client-server pairs.
         
-        Args:
-            client_server_pairs: List of (client_host, server_host) tuples
-            test_config: Optional test configuration override
-            
-        Returns:
-            Dictionary mapping test pairs to their results
+        :param client_server_pairs: List of (client_host, server_host) tuples
+        :param test_config: Optional test configuration (uses default if None)
+        :return: Dictionary mapping pair keys to test results
         """
-        config = test_config or self.config
+        if test_config is None:
+            test_config = self.config
         
-        self.logger.info(f"Starting iperf tests for {len(client_server_pairs)} pairs",
-                        test_duration=config.test_duration,
-                        parallel_streams=config.parallel_streams)
+        # Extract unique server hosts
+        server_hosts = list(set(pair[1] for pair in client_server_pairs))
         
-        all_results = {}
+        # Start iperf servers
+        server_results = self._start_iperf_servers(server_hosts, test_config)
         
-        # Phase 1: Start iperf servers on all server hosts
-        server_results = self._start_iperf_servers([pair[1] for pair in client_server_pairs], config)
-        
-        # Wait a moment for servers to start
+        # Wait a bit for servers to start
         time.sleep(2)
         
-        # Phase 2: Start iperf clients
-        client_results = self._start_iperf_clients(client_server_pairs, config)
+        # Start iperf clients
+        client_results = self._start_iperf_clients(client_server_pairs, test_config)
         
-        # Phase 3: Wait for tests to complete
-        self._wait_for_tests_completion(client_server_pairs, config)
+        # Wait for tests to complete
+        self._wait_for_tests_completion(client_server_pairs, test_config)
         
-        # Phase 4: Collect and process results
+        # Collect and process results
         all_results = self._collect_results(client_server_pairs, server_results, client_results)
-        
-        # Phase 5: Cleanup (optional - preserve channels if requested)
-        if not config.preserve_channels:
-            self._cleanup_channels(client_server_pairs)
         
         return all_results
     
@@ -492,17 +485,15 @@ class IperfManager:
         """
         Parse a local iperf JSON result file, return summary stats, percentiles, and pass/fail if expected_result is given.
 
-        Args:
-            file_path: Path to the iperf3 JSON output file
-            expected_result: (Optional) Expected average throughput in Gbits/sec for pass/fail logic
-            tolerance_pct: (Optional) Tolerance percentage for pass/fail (default 10%%)
-        Returns:
-            dict with keys:
-                - sum_sent, sum_received, cpu_utilization_percent
-                - throughput_percentiles (dict of percentiles)
-                - average_throughput (float, Gbits/sec)
-                - test_result_fail (bool, if expected_result is given)
-                - expected_result, tolerance_pct (if expected_result is given)
+        :param file_path: Path to the iperf3 JSON output file
+        :param expected_result: (Optional) Expected average throughput in Gbits/sec for pass/fail logic
+        :param tolerance_pct: (Optional) Tolerance percentage for pass/fail (default 10%)
+        :return: dict with keys:
+            - sum_sent, sum_received, cpu_utilization_percent
+            - throughput_percentiles (dict of percentiles)
+            - average_throughput (float, Gbits/sec)
+            - test_result_fail (bool, if expected_result is given)
+            - expected_result, tolerance_pct (if expected_result is given)
         """
         try:
             with open(file_path, 'r') as f:
@@ -581,13 +572,11 @@ def create_iperf_test_scenario(client_hosts: List[str], server_hosts: List[str],
     """
     Create iperf test pairs from client and server host lists.
     
-    Args:
-        client_hosts: List of client hostnames/IPs
-        server_hosts: List of server hostnames/IPs
-        test_config: Optional test configuration
-        
-    Returns:
-        List of (client_host, server_host) pairs
+    :param client_hosts: List of client hostnames/IPs
+    :param server_hosts: List of server hostnames/IPs
+    :param test_config: Optional test configuration
+    
+    :return: List of (client_host, server_host) pairs
     """
     pairs = []
     

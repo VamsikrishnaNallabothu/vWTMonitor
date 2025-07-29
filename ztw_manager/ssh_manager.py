@@ -30,6 +30,8 @@ from .log_capture import LogCapture, LogCaptureConfig
 # Removed: from .metrics import MetricsCollector
 from .channel_manager import ChannelManager, ChannelCommand, ChannelResult
 
+# Author: Vamsi
+
 
 @dataclass
 class CommandResult:
@@ -66,9 +68,8 @@ class SSHManager:
         """
         Initialize SSH manager.
         
-        Args:
-            config: Configuration object
-            logger: Logger instance
+        :param config: Configuration object
+        :param logger: Logger instance
         """
         self.config = config
         self.logger = logger or StructuredLogger(
@@ -137,14 +138,12 @@ class SSHManager:
         """
         Execute command on multiple hosts in parallel.
         
-        Args:
-            command: Command to execute
-            hosts: List of hosts (None for all configured hosts)
-            timeout: Command timeout (None for default)
-            show_progress: Show progress bar
-            
-        Returns:
-            List of command results
+        :param command: Command to execute
+        :param hosts: List of hosts (None for all configured hosts)
+        :param timeout: Command timeout (None for default)
+        :param show_progress: Show progress bar
+        
+        :return: List of command results
         """
         target_hosts = hosts or self.config.hosts
         timeout = timeout or self.config.timeout
@@ -272,13 +271,11 @@ class SSHManager:
         """
         Execute command on a specific host.
         
-        Args:
-            host: Target host
-            command: Command to execute
-            timeout: Command timeout
-            
-        Returns:
-            Command result
+        :param host: Target host
+        :param command: Command to execute
+        :param timeout: Command timeout
+        
+        :return: Command result
         """
         start_time = time.time()
         host_logger = self._get_host_logger(host)
@@ -350,11 +347,9 @@ class SSHManager:
         """
         Get or create a channel manager for a host.
         
-        Args:
-            host: Target host
-            
-        Returns:
-            Channel manager instance
+        :param host: Target host
+        
+        :return: Channel manager instance
         """
         if host not in self.channel_managers:
             # Get SSH client
@@ -380,15 +375,13 @@ class SSHManager:
         """
         Execute a chain of commands on multiple hosts using channels.
         
-        Args:
-            commands: List of commands (strings or ChannelCommand objects)
-            hosts: List of hosts (None for all configured hosts)
-            timeout: Command timeout (None for default)
-            show_progress: Show progress bar
-            create_new_channel: Whether to create new channels
-            
-        Returns:
-            Dictionary mapping hosts to their command results
+        :param commands: List of commands (strings or ChannelCommand objects)
+        :param hosts: List of hosts (None for all configured hosts)
+        :param timeout: Command timeout (None for default)
+        :param show_progress: Show progress bar
+        :param create_new_channel: Whether to create new channels
+        
+        :return: Dictionary mapping hosts to their command results
         """
         target_hosts = hosts or self.config.hosts
         timeout = timeout or self.config.timeout
@@ -520,13 +513,11 @@ class SSHManager:
         """
         Execute chain commands on a specific host.
         
-        Args:
-            host: Target host
-            commands: List of channel commands
-            create_new_channel: Whether to create a new channel
-            
-        Returns:
-            List of command results
+        :param host: Target host
+        :param commands: List of channel commands
+        :param create_new_channel: Whether to create a new channel
+        
+        :return: List of command results
         """
         try:
             with self.semaphore:
@@ -566,14 +557,12 @@ class SSHManager:
         """
         Execute interactive commands with expect patterns.
         
-        Args:
-            commands: List of (command, expect_patterns) tuples
-            hosts: List of hosts (None for all configured hosts)
-            timeout: Command timeout
-            show_progress: Show progress bar
-            
-        Returns:
-            Dictionary mapping hosts to their command results
+        :param commands: List of (command, expect_patterns) tuples
+        :param hosts: List of hosts (None for all configured hosts)
+        :param timeout: Command timeout
+        :param show_progress: Show progress bar
+        
+        :return: Dictionary mapping hosts to their command results
         """
         target_hosts = hosts or self.config.hosts
         
@@ -684,13 +673,11 @@ class SSHManager:
         """
         Execute interactive commands on a specific host.
         
-        Args:
-            host: Target host
-            commands: List of (command, expect_patterns) tuples
-            timeout: Command timeout
-            
-        Returns:
-            List of command results
+        :param host: Target host
+        :param commands: List of (command, expect_patterns) tuples
+        :param timeout: Command timeout
+        
+        :return: List of command results
         """
         try:
             with self.semaphore:
@@ -728,11 +715,9 @@ class SSHManager:
         """
         Get channel information.
         
-        Args:
-            host: Specific host (None for all hosts)
-            
-        Returns:
-            Channel information
+        :param host: Specific host (None for all hosts)
+        
+        :return: Channel information
         """
         if host:
             if host in self.channel_managers:
@@ -748,8 +733,7 @@ class SSHManager:
         """
         Close channels.
         
-        Args:
-            host: Specific host (None for all hosts)
+        :param host: Specific host (None for all hosts)
         """
         if host:
             if host in self.channel_managers:
@@ -763,14 +747,12 @@ class SSHManager:
         """
         Upload file to multiple hosts in parallel.
         
-        Args:
-            local_path: Local file path
-            remote_path: Remote file path
-            hosts: List of hosts (None for all configured hosts)
-            show_progress: Show progress bar
-            
-        Returns:
-            List of file transfer results
+        :param local_path: Local file path
+        :param remote_path: Remote file path
+        :param hosts: List of hosts (None for all configured hosts)
+        :param show_progress: Show progress bar
+        
+        :return: List of file transfer results
         """
         target_hosts = hosts or self.config.hosts
         
@@ -900,13 +882,11 @@ class SSHManager:
         """
         Upload file to a specific host.
         
-        Args:
-            host: Target host
-            local_path: Local file path
-            remote_path: Remote file path
-            
-        Returns:
-            File transfer result
+        :param host: Target host
+        :param local_path: Local file path
+        :param remote_path: Remote file path
+        
+        :return: File transfer result
         """
         start_time = time.time()
         host_logger = self._get_host_logger(host)
@@ -985,14 +965,12 @@ class SSHManager:
         """
         Download file from multiple hosts in parallel.
         
-        Args:
-            remote_path: Remote file path
-            local_dir: Local directory to save files
-            hosts: List of hosts (None for all configured hosts)
-            show_progress: Show progress bar
-            
-        Returns:
-            List of file transfer results
+        :param remote_path: Remote file path
+        :param local_dir: Local directory to save files
+        :param hosts: List of hosts (None for all configured hosts)
+        :param show_progress: Show progress bar
+        
+        :return: List of file transfer results
         """
         target_hosts = hosts or self.config.hosts
         
@@ -1120,13 +1098,11 @@ class SSHManager:
         """
         Download file from a specific host.
         
-        Args:
-            host: Target host
-            remote_path: Remote file path
-            local_path: Local file path
-            
-        Returns:
-            File transfer result
+        :param host: Target host
+        :param remote_path: Remote file path
+        :param local_path: Local file path
+        
+        :return: File transfer result
         """
         start_time = time.time()
         host_logger = self._get_host_logger(host)
@@ -1197,12 +1173,10 @@ class SSHManager:
         """
         Calculate MD5 checksum of remote file.
         
-        Args:
-            sftp: SFTP client
-            remote_path: Remote file path
-            
-        Returns:
-            MD5 checksum
+        :param sftp: SFTP client
+        :param remote_path: Remote file path
+        
+        :return: MD5 checksum
         """
         try:
             # Execute md5sum command
@@ -1224,9 +1198,8 @@ class SSHManager:
         """
         Start real-time log capture from multiple hosts.
         
-        Args:
-            log_file_path: Path to log file on remote hosts
-            hosts: List of hosts (None for all configured hosts)
+        :param log_file_path: Path to log file on remote hosts
+        :param hosts: List of hosts (None for all configured hosts)
         """
         if not self.log_capture:
             raise RuntimeError("Log capture is not enabled in configuration")
@@ -1260,8 +1233,7 @@ class SSHManager:
         """
         Stop log capture.
         
-        Args:
-            hosts: List of hosts (None for all hosts)
+        :param hosts: List of hosts (None for all hosts)
         """
         if not self.log_capture:
             return
@@ -1289,10 +1261,9 @@ class SSHManager:
         """
         Export results to file.
         
-        Args:
-            results: List of results to export
-            filename: Output filename
-            format: Export format (json, csv)
+        :param results: List of results to export
+        :param filename: Output filename
+        :param format: Export format (json, csv)
         """
         if format == "json":
             data = []

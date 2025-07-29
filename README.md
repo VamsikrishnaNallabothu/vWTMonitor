@@ -1,6 +1,6 @@
-# vWT Monitor
+# ZTWorkload Manager
 
-**vWT Monitor** - A high-performance, parallel SSH tool written in Python 3.10+ with enhanced features for scalable remote command execution, real-time log capture, and advanced monitoring capabilities.
+**ZTWorkload Manager** - A high-performance, parallel SSH tool written in Python 3.10+ with enhanced features for scalable remote command execution, real-time log capture, and advanced monitoring capabilities.
 
 ## Features
 
@@ -38,7 +38,7 @@
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd vwt-monitor
+cd ztworkload
 
 # Install dependencies
 pip install -r requirements.txt
@@ -51,19 +51,19 @@ pip install -e .
 
 ```bash
 # Basic command execution
-python main.py execute -h host1,host2,host3 -u root -p password "ls -la"
+python ztw_manager.py execute -h host1,host2,host3 -u root -p password "ls -la"
 
 # Using configuration file
-python main.py execute -c config.yaml "ps aux"
+python ztw_manager.py execute -c config.yaml "ps aux"
 
 # File upload
-python main.py upload -h host1,host2 -u root -p password local_script.sh /tmp/
+python ztw_manager.py upload -h host1,host2 -u root -p password local_script.sh /tmp/
 
 # File download
-python main.py download -h host1,host2 -u root -p password /var/log/app.log
+python ztw_manager.py download -h host1,host2 -u root -p password /var/log/app.log
 
 # Real-time log capture
-python main.py tail -h host1,host2 -u root -p password /var/log/app.log
+python ztw_manager.py tail -h host1,host2 -u root -p password /var/log/app.log
 ```
 
 ## Configuration
@@ -71,7 +71,7 @@ python main.py tail -h host1,host2 -u root -p password /var/log/app.log
 The tool uses YAML configuration files for flexible setup. Here's a comprehensive example:
 
 ```yaml
-# vWT Monitor Configuration
+# ZTWorkload Manager Configuration
 hosts:
   - "192.168.1.10"
   - "192.168.1.11"
@@ -96,7 +96,7 @@ jumphost:
 
 # Logging configuration
 log_level: "info"
-log_file: "logs/vwt_monitor.log"
+log_file: "logs/ztw_manager.log"
 log_format: "json"
 
 # Advanced SSH settings
@@ -145,19 +145,19 @@ Execute commands on multiple hosts in parallel:
 
 ```bash
 # Basic command execution
-python main.py execute -h host1,host2,host3 -u root -p password "df -h"
+python ztw_manager.py execute -h host1,host2,host3 -u root -p password "df -h"
 
 # Using key-based authentication
-python main.py execute -h host1,host2 -u root -k ~/.ssh/id_rsa "systemctl status nginx"
+python ztw_manager.py execute -h host1,host2 -u root -k ~/.ssh/id_rsa "systemctl status nginx"
 
 # With custom timeout and parallel limits
-python main.py execute -h host1,host2,host3 -u root -p password --timeout 60 --parallel 5 "long_running_command"
+python ztw_manager.py execute -h host1,host2,host3 -u root -p password --timeout 60 --parallel 5 "long_running_command"
 
 # Using configuration file
-python main.py execute -c config.yaml "ps aux | grep python"
+python ztw_manager.py execute -c config.yaml "ps aux | grep python"
 
 # Export results to file
-python main.py execute -h host1,host2 -u root -p password -o results --format json "ls -la"
+python ztw_manager.py execute -h host1,host2 -u root -p password -o results --format json "ls -la"
 ```
 
 ### Network Traffic Testing
@@ -166,38 +166,38 @@ Test network connectivity and performance across various protocols:
 
 ```bash
 # Test TCP connectivity between hosts
-python main.py traffic -s host1,host2 -t host3,host4 -p 22,80,443 --protocol tcp --direction east_west
+python ztw_manager.py traffic -s host1,host2 -t host3,host4 -p 22,80,443 --protocol tcp --direction east_west
 
 # Test HTTP connectivity
-python main.py traffic -s host1,host2 -t host3,host4 -p 80,8080 --protocol http --duration 30
+python ztw_manager.py traffic -s host1,host2 -t host3,host4 -p 80,8080 --protocol http --duration 30
 
 # Test HTTPS with SSL verification
-python main.py traffic -s host1 -t host2 -p 443 --protocol https --verify-ssl
+python ztw_manager.py traffic -s host1 -t host2 -p 443 --protocol https --verify-ssl
 
 # Test UDP connectivity
-python main.py traffic -s host1,host2 -t host3,host4 -p 53,123 --protocol udp --packet-size 512
+python ztw_manager.py traffic -s host1,host2 -t host3,host4 -p 53,123 --protocol udp --packet-size 512
 
 # Test DNS resolution
-python main.py traffic -s host1,host2 -t 8.8.8.8,1.1.1.1 -p 53 --protocol dns
+python ztw_manager.py traffic -s host1,host2 -t 8.8.8.8,1.1.1.1 -p 53 --protocol dns
 
 # Test ICMP ping
-python main.py traffic -s host1,host2 -t host3,host4 --protocol icmp --interval 2
+python ztw_manager.py traffic -s host1,host2 -t host3,host4 --protocol icmp --interval 2
 
 # Test SCP file transfer
-python main.py traffic -s host1 -t host2 -p 22 --protocol scp --scp-user user --scp-pass password
+python ztw_manager.py traffic -s host1 -t host2 -p 22 --protocol scp --scp-user user --scp-pass password
 
 # Test FTP file transfer
-python main.py traffic -s host1 -t host2 -p 21 --protocol ftp --ftp-user user --ftp-pass password
+python ztw_manager.py traffic -s host1 -t host2 -p 21 --protocol ftp --ftp-user user --ftp-pass password
 
 # North-South connectivity testing
-python main.py traffic -s host1,host2 -t google.com,github.com -p 80,443 --protocol http --direction north_south
+python ztw_manager.py traffic -s host1,host2 -t google.com,github.com -p 80,443 --protocol http --direction north_south
 
 # Using configuration file
-python main.py traffic -c config.yaml --protocol tcp --duration 60 --interval 0.5
+python ztw_manager.py traffic -c config.yaml --protocol tcp --duration 60 --interval 0.5
 
 # Export results in different formats
-python main.py traffic -s host1 -t host2 -p 80 --protocol http --format json
-python main.py traffic -s host1 -t host2 -p 80 --protocol http --format csv
+python ztw_manager.py traffic -s host1 -t host2 -p 80 --protocol http --format json
+python ztw_manager.py traffic -s host1 -t host2 -p 80 --protocol http --format csv
 ```
 
 Available protocols and metrics:
@@ -216,16 +216,16 @@ Execute sequences of dependent commands using persistent SSH channels:
 
 ```bash
 # Execute chain of commands
-python main.py chain -h host1,host2,host3 -u root -p password "cd /tmp" "pwd" "mkdir test" "cd test" "echo 'Hello' > file.txt" "cat file.txt"
+python ztw_manager.py chain -h host1,host2,host3 -u root -p password "cd /tmp" "pwd" "mkdir test" "cd test" "echo 'Hello' > file.txt" "cat file.txt"
 
 # Using configuration file
-python main.py chain -c config.yaml "cd /opt/app" "git pull" "npm install" "systemctl restart app"
+python ztw_manager.py chain -c config.yaml "cd /opt/app" "git pull" "npm install" "systemctl restart app"
 
 # Create new channel for each execution
-python main.py chain -h host1,host2 -u root -p password --new-channel "cd /tmp" "pwd" "ls -la"
+python ztw_manager.py chain -h host1,host2 -u root -p password --new-channel "cd /tmp" "pwd" "ls -la"
 
 # With custom timeout
-python main.py chain -h host1,host2 -u root -p password --timeout 60 "long_command1" "long_command2" "long_command3"
+python ztw_manager.py chain -h host1,host2 -u root -p password --timeout 60 "long_command1" "long_command2" "long_command3"
 ```
 
 ### Interactive Commands
@@ -240,10 +240,10 @@ echo "whoami" >> commands.txt
 echo "exit" >> commands.txt
 
 # Execute interactive commands
-python main.py interactive -h host1,host2 -u root -p password commands.txt
+python ztw_manager.py interactive -h host1,host2 -u root -p password commands.txt
 
 # With custom timeout
-python main.py interactive -h host1,host2 -u root -p password --timeout 30 commands.txt
+python ztw_manager.py interactive -h host1,host2 -u root -p password --timeout 30 commands.txt
 ```
 
 Commands file format:
@@ -259,16 +259,16 @@ Upload and download files with progress tracking:
 
 ```bash
 # Upload file to multiple hosts
-python main.py upload -h host1,host2,host3 -u root -p password deploy.sh /tmp/
+python ztw_manager.py upload -h host1,host2,host3 -u root -p password deploy.sh /tmp/
 
 # Download file from multiple hosts
-python main.py download -h host1,host2,host3 -u root -p password /var/log/app.log
+python ztw_manager.py download -h host1,host2,host3 -u root -p password /var/log/app.log
 
 # Upload with custom configuration
-python main.py upload -c config.yaml --no-progress script.py /opt/scripts/
+python ztw_manager.py upload -c config.yaml --no-progress script.py /opt/scripts/
 
 # Download with specific output directory
-python main.py download -h host1,host2 -u root -p password -o downloads /var/log/nginx/access.log
+python ztw_manager.py download -h host1,host2 -u root -p password -o downloads /var/log/nginx/access.log
 ```
 
 ### Real-time Log Capture
@@ -277,13 +277,13 @@ Monitor log files across multiple hosts in real-time:
 
 ```bash
 # Start log capture
-python main.py tail -h host1,host2,host3 -u root -p password /var/log/app.log
+python ztw_manager.py tail -h host1,host2,host3 -u root -p password /var/log/app.log
 
 # Using jumphost
-python main.py tail -c config.yaml /var/log/nginx/error.log
+python ztw_manager.py tail -c config.yaml /var/log/nginx/error.log
 
 # With custom configuration
-python main.py tail -h host1,host2 -u root -p password --timeout 60 /var/log/syslog
+python ztw_manager.py tail -h host1,host2 -u root -p password --timeout 60 /var/log/syslog
 ```
 
 ### Monitoring and Metrics
@@ -292,10 +292,10 @@ Export stats and view results:
 
 ```bash
 # Export metrics
-python main.py metrics -c config.yaml -o metrics --format json
+python ztw_manager.py metrics -c config.yaml -o metrics --format json
 
 # Validate configuration
-python main.py config-validate -c config.yaml
+python ztw_manager.py config-validate -c config.yaml
 ```
 
 ## Advanced Usage
@@ -305,7 +305,7 @@ python main.py config-validate -c config.yaml
 Use the SSH Tool as a Python library:
 
 ```python
-from ssh_tool import SSHManager, Config
+from ztw_manager import SSHManager, Config
 
 # Load configuration
 config = Config.load('config.yaml')
@@ -362,12 +362,12 @@ with SSHManager(config) as manager:
 Start a live logging dashboard:
 
 ```python
-from ssh_tool import StructuredLogger
+from ztw_manager import StructuredLogger
 
 # Create logger with dashboard
 logger = StructuredLogger(
     level="info",
-    log_file="logs/ssh_tool.log",
+    log_file="logs/ztw_manager.log",
     log_format="json"
 )
 
@@ -380,7 +380,7 @@ logger.start_live_dashboard()
 Configure advanced log capture:
 
 ```python
-from ssh_tool import LogCapture, LogCaptureConfig
+from ztw_manager import LogCapture, LogCaptureConfig
 
 # Custom configuration
 config = LogCaptureConfig(
@@ -508,10 +508,10 @@ Enable verbose logging for troubleshooting:
 
 ```bash
 # Enable verbose logging
-python main.py execute -h host1 -u root -p password -v "test_command"
+python ztw_manager.py execute -h host1 -u root -p password -v "test_command"
 
 # Check logs
-tail -f logs/ssh_tool.log
+tail -f logs/ztw_manager.log
 ```
 
 ### Performance Tuning
@@ -532,36 +532,36 @@ buffer_size: 16384        # Increase for high-volume logs
 
 ```bash
 # Check disk usage on all servers
-python main.py execute -h web1,web2,db1 -u admin -k ~/.ssh/admin_key "df -h"
+python ztw_manager.py execute -h web1,web2,db1 -u admin -k ~/.ssh/admin_key "df -h"
 
 # Monitor system load
-python main.py execute -h web1,web2,db1 -u admin -k ~/.ssh/admin_key "uptime"
+python ztw_manager.py execute -h web1,web2,db1 -u admin -k ~/.ssh/admin_key "uptime"
 
 # Check running services
-python main.py execute -h web1,web2,db1 -u admin -k ~/.ssh/admin_key "systemctl status nginx"
+python ztw_manager.py execute -h web1,web2,db1 -u admin -k ~/.ssh/admin_key "systemctl status nginx"
 ```
 
 ### Log Monitoring
 
 ```bash
 # Monitor application logs
-python main.py tail -h app1,app2,app3 -u deploy -p deploypass /var/log/myapp/app.log
+python ztw_manager.py tail -h app1,app2,app3 -u deploy -p deploypass /var/log/myapp/app.log
 
 # Monitor system logs
-python main.py tail -h web1,web2 -u admin -k ~/.ssh/admin_key /var/log/syslog
+python ztw_manager.py tail -h web1,web2 -u admin -k ~/.ssh/admin_key /var/log/syslog
 ```
 
 ### Deployment
 
 ```bash
 # Upload deployment script
-python main.py upload -h prod1,prod2,prod3 -u deploy -k ~/.ssh/deploy_key deploy.sh /tmp/
+python ztw_manager.py upload -h prod1,prod2,prod3 -u deploy -k ~/.ssh/deploy_key deploy.sh /tmp/
 
 # Execute deployment
-python main.py execute -h prod1,prod2,prod3 -u deploy -k ~/.ssh/deploy_key "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
+python ztw_manager.py execute -h prod1,prod2,prod3 -u deploy -k ~/.ssh/deploy_key "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
 
 # Download logs after deployment
-python main.py download -h prod1,prod2,prod3 -u deploy -k ~/.ssh/deploy_key /var/log/deploy.log
+python ztw_manager.py download -h prod1,prod2,prod3 -u deploy -k ~/.ssh/deploy_key /var/log/deploy.log
 ```
 
 ### Batch Operations
@@ -569,12 +569,12 @@ python main.py download -h prod1,prod2,prod3 -u deploy -k ~/.ssh/deploy_key /var
 ```bash
 # Execute multiple commands
 for cmd in "uptime" "df -h" "free -m"; do
-    python main.py execute -h host1,host2,host3 -u root -p password "$cmd"
+    python ztw_manager.py execute -h host1,host2,host3 -u root -p password "$cmd"
 done
 
 # Upload multiple files
 for file in script1.sh script2.py config.yaml; do
-    python main.py upload -h host1,host2,host3 -u root -p password "$file" /opt/scripts/
+    python ztw_manager.py upload -h host1,host2,host3 -u root -p password "$file" /opt/scripts/
 done
 ```
 

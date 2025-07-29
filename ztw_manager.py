@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """
-vWT Monitor - Advanced SSH tool for workload management and network monitoring
-A high-performance, parallel SSH tool with enhanced features for workload management.
-
-This is the main CLI interface for vWT Monitor.
+ZTWorkload Manager - A high-performance, parallel SSH tool for workload management.
 """
 
 import os
@@ -20,16 +17,18 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.live import Live
 from rich.layout import Layout
 
-from vwt_monitor import (
-    SSHManager, Config, StructuredLogger, IperfManager, IperfTestConfig,
-    TrafficManager, TrafficTestConfig, ProtocolType, Direction
+from ztw_manager import (
+    SSHManager, Config, StructuredLogger, TrafficManager, TrafficTestConfig,
+    ProtocolType, Direction, LogCapture, LogCaptureConfig
 )
+
+# Author: Vamsi
 
 
 @click.group()
 @click.version_option(version="1.0.0")
 def cli():
-    """vWT Monitor - Advanced SSH tool for workload management and network monitoring."""
+    """ZTWorkload Manager - A high-performance, parallel SSH tool for workload management."""
     pass
 
 
@@ -49,7 +48,23 @@ def cli():
 @click.argument('command')
 def execute(config, hosts, user, password, key_file, port, timeout, parallel, 
            output_dir, output_format, verbose, no_progress, command):
-    """Execute a command on multiple hosts."""
+    """
+    Execute a command on multiple hosts.
+    
+    :param config: Configuration file path
+    :param hosts: Comma-separated list of hosts (overrides config)
+    :param user: SSH username (overrides config)
+    :param password: SSH password (overrides config)
+    :param key_file: SSH private key file (overrides config)
+    :param port: SSH port (overrides config)
+    :param timeout: SSH connection timeout (overrides config)
+    :param parallel: Maximum parallel connections (overrides config)
+    :param output_dir: Output directory for results
+    :param output_format: Output format
+    :param verbose: Enable verbose logging
+    :param no_progress: Disable progress bars
+    :param command: Command to execute
+    """
     console = Console()
     
     try:
@@ -95,7 +110,7 @@ def execute(config, hosts, user, password, key_file, port, timeout, parallel,
         # Setup logger
         logger = StructuredLogger(
             level="debug" if verbose else cfg.log_level,
-            log_file=os.path.join(output_dir, "vwt_monitor.log"),
+            log_file=os.path.join(output_dir, "ztw_manager.log"),
             log_format=cfg.log_format
         )
         
@@ -195,7 +210,7 @@ def upload(config, hosts, user, password, key_file, port, timeout, parallel,
         # Setup logger
         logger = StructuredLogger(
             level="debug" if verbose else cfg.log_level,
-            log_file=os.path.join(output_dir, "vwt_monitor.log"),
+            log_file=os.path.join(output_dir, "ztw_manager.log"),
             log_format=cfg.log_format
         )
         
@@ -290,7 +305,7 @@ def download(config, hosts, user, password, key_file, port, timeout, parallel,
         # Setup logger
         logger = StructuredLogger(
             level="debug" if verbose else cfg.log_level,
-            log_file=os.path.join(output_dir, "vwt_monitor.log"),
+            log_file=os.path.join(output_dir, "ztw_manager.log"),
             log_format=cfg.log_format
         )
         
@@ -375,7 +390,7 @@ def tail(config, hosts, user, password, key_file, port, timeout, verbose, log_fi
         # Setup logger
         logger = StructuredLogger(
             level="debug" if verbose else cfg.log_level,
-            log_file="logs/vwt_monitor.log",
+            log_file="logs/ztw_manager.log",
             log_format=cfg.log_format
         )
         
@@ -485,7 +500,7 @@ def interactive(config, hosts, user, password, key_file, port, timeout, parallel
         # Setup logger
         logger = StructuredLogger(
             level="debug" if verbose else cfg.log_level,
-            log_file=os.path.join(output_dir, "vwt_monitor.log"),
+            log_file=os.path.join(output_dir, "ztw_manager.log"),
             log_format=cfg.log_format
         )
         
