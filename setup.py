@@ -87,7 +87,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "ztw-manager=ztw_manager:cli",
+            "ztw-manager=ztw_manager.cli:cli",
         ],
     },
     include_package_data=True,

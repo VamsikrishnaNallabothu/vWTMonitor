@@ -1,0 +1,2 @@
+[console_scripts]
+ztw-manager = ztw_manager.cli:cli
